@@ -605,7 +605,7 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
-const server = http.createServer(async (req, res) => {
+async function requestHandler(req, res) {
   if (req.method === 'OPTIONS') {
     return sendJson(res, 200, { ok: true });
   }
@@ -1305,14 +1305,17 @@ const server = http.createServer(async (req, res) => {
     console.error('Backend Error:', err);
     return sendJson(res, 500, { error: err.message || 'Internal Server Error' });
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log('==========================================================');
-  console.log('  RECLAIM — Campus Lost & Found Backend Server (SQLite)');
-  console.log(`  API URL      : http://localhost:${PORT}/api/health`);
-  console.log(`  SQLite DB    : ${DB_PATH}`);
-  console.log('==========================================================');
-});
+if (require.main === module || !process.env.VERCEL) {
+  const server = http.createServer(requestHandler);
+  server.listen(PORT, () => {
+    console.log('==========================================================');
+    console.log('  RECLAIM — Campus Lost & Found Backend Server (SQLite)');
+    console.log(`  API URL      : http://localhost:${PORT}/api/health`);
+    console.log(`  SQLite DB    : ${DB_PATH}`);
+    console.log('==========================================================');
+  });
+}
 
-module.exports = server;
+module.exports = requestHandler;

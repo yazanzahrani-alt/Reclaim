@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PORT = process.env.PORT || 3000;
-const PUBLIC_DIR = path.join(__dirname, 'public');
 const BACKEND_URL = process.env.BACKEND_URL || '';
 
 const MIME_TYPES = {
@@ -18,7 +17,28 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
+function resolveStaticFile(relPath) {
+  const candidates = [
+    path.join(__dirname, 'public', relPath),
+    path.join(__dirname, relPath),
+    path.join(process.cwd(), 'frontend', 'public', relPath),
+    path.join(process.cwd(), 'public', relPath),
+    path.join(process.cwd(), relPath)
+  ];
+
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c) && !fs.statSync(c).isDirectory()) {
+        return c;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+function requestHandler(req, res) {
   const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
 
   // Internal Service Binding Proxy: If an /api request arrives at the frontend service
@@ -50,24 +70,27 @@ const server = http.createServer((req, res) => {
   }
 
   let safePath = path.normalize(parsedUrl.pathname).replace(/^(\.\.[\/\\])+/, '');
-  if (safePath === '/' || safePath === '\\') {
-    safePath = '/index.html';
+  if (safePath === '/' || safePath === '\\' || !safePath) {
+    safePath = 'index.html';
   }
 
-  const filePath = path.join(PUBLIC_DIR, safePath);
+  let filePath = resolveStaticFile(safePath);
+
+  // SPA fallback to index.html if file doesn't exist
+  if (!filePath) {
+    filePath = resolveStaticFile('index.html');
+  }
+
+  if (!filePath) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Frontend file not found.');
+    return;
+  }
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      // SPA fallback to index.html
-      fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (err2, fallback) => {
-        if (err2) {
-          res.writeHead(500);
-          res.end('Frontend files missing.');
-          return;
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(fallback);
-      });
+      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Error reading frontend file.');
       return;
     }
 
@@ -75,15 +98,19 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
     res.end(content);
   });
-});
+}
 
-server.listen(PORT, () => {
-  console.log('==========================================================');
-  console.log('  RECLAIM — Campus Lost & Found Frontend Web Application');
-  console.log(`  Open in Browser : http://localhost:${PORT}`);
-  console.log('  Connected API   : http://localhost:5000');
-  console.log('==========================================================');
-});
+// When run locally (node server.js / npm start)
+if (require.main === module || !process.env.VERCEL) {
+  const server = http.createServer(requestHandler);
+  server.listen(PORT, () => {
+    console.log('==========================================================');
+    console.log('  RECLAIM — Campus Lost & Found Frontend Web Application');
+    console.log(`  Open in Browser : http://localhost:${PORT}`);
+    console.log('  Connected API   : http://localhost:5000');
+    console.log('==========================================================');
+  });
+}
 
-module.exports = server;
-
+// Export the callable request handler function for Vercel Serverless Function runtime
+module.exports = requestHandler;
