@@ -1,7 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { DatabaseSync } = require('node:sqlite');
+const { getDatabase } = require('./db_adapter.js');
 
 const PORT = process.env.PORT || 5000;
 const isVercel = !!process.env.VERCEL;
@@ -14,16 +14,12 @@ if (isVercel && !fs.existsSync(DB_PATH)) {
     try {
       fs.copyFileSync(seedTemplate, DB_PATH);
     } catch (e) {
-      console.warn('Could not copy initial reclaim.db to /tmp:', e);
+      // ignore
     }
   }
 }
 
-const db = new DatabaseSync(DB_PATH);
-
-// Enable WAL mode and foreign keys for performance and integrity
-db.exec(`PRAGMA journal_mode = WAL;`);
-db.exec(`PRAGMA foreign_keys = ON;`);
+const { db, isMemory } = getDatabase(DB_PATH);
 
 // Built-in SVG Data URI illustrations for realistic campus items
 function createItemSvg(bg1, bg2, iconSvg, label, sublabel) {
@@ -1307,7 +1303,7 @@ async function requestHandler(req, res) {
   }
 }
 
-if (require.main === module || !process.env.VERCEL) {
+if (require.main === module) {
   const server = http.createServer(requestHandler);
   server.listen(PORT, () => {
     console.log('==========================================================');

@@ -101,7 +101,7 @@ function requestHandler(req, res) {
 }
 
 // When run locally (node server.js / npm start)
-if (require.main === module || !process.env.VERCEL) {
+if (require.main === module) {
   const server = http.createServer(requestHandler);
   server.listen(PORT, () => {
     console.log('==========================================================');
