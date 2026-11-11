@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# SQLite WAL and lock files (keep base db or recreate on startup)
+backend/*.db-wal
+backend/*.db-shm
+backend/*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
