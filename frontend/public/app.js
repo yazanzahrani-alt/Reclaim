@@ -1,4 +1,9 @@
-const API_BASE = 'http://localhost:5000/api';
+// Automatically resolve API base:
+// When running locally on port 3000 with backend on 5000, target port 5000.
+// When deployed on Vercel or under 'vercel dev' (with top-level rewrites /api/*), use relative '/api'.
+const API_BASE = (window.location.hostname === 'localhost' && window.location.port === '3000')
+  ? 'http://localhost:5000/api'
+  : '/api';
 
 // Application State
 let currentUser = null;

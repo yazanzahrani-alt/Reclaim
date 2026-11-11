@@ -1,9 +1,11 @@
 const http = require('node:http');
+const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const BACKEND_URL = process.env.BACKEND_URL || '';
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -18,6 +20,35 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
+
+  // Internal Service Binding Proxy: If an /api request arrives at the frontend service
+  // and BACKEND_URL is bound, forward it to the internal backend service.
+  if (parsedUrl.pathname.startsWith('/api') && BACKEND_URL) {
+    try {
+      const targetUrl = new URL(parsedUrl.pathname + parsedUrl.search, BACKEND_URL);
+      const clientModule = targetUrl.protocol === 'https:' ? https : http;
+      const proxyReq = clientModule.request(
+        targetUrl,
+        {
+          method: req.method,
+          headers: { ...req.headers, host: targetUrl.host }
+        },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res);
+        }
+      );
+      proxyReq.on('error', (err) => {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Backend service unavailable', details: err.message }));
+      });
+      req.pipe(proxyReq);
+      return;
+    } catch (e) {
+      console.error('Proxy error:', e);
+    }
+  }
+
   let safePath = path.normalize(parsedUrl.pathname).replace(/^(\.\.[\/\\])+/, '');
   if (safePath === '/' || safePath === '\\') {
     safePath = '/index.html';

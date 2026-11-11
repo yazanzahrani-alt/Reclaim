@@ -1,9 +1,24 @@
 const http = require('node:http');
+const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 5000;
-const DB_PATH = path.join(__dirname, 'reclaim.db');
+const isVercel = !!process.env.VERCEL;
+const DB_PATH = isVercel ? path.join('/tmp', 'reclaim.db') : path.join(__dirname, 'reclaim.db');
+
+// If on Vercel serverless and /tmp/reclaim.db does not exist yet, copy seeded template if present
+if (isVercel && !fs.existsSync(DB_PATH)) {
+  const seedTemplate = path.join(__dirname, 'reclaim.db');
+  if (fs.existsSync(seedTemplate)) {
+    try {
+      fs.copyFileSync(seedTemplate, DB_PATH);
+    } catch (e) {
+      console.warn('Could not copy initial reclaim.db to /tmp:', e);
+    }
+  }
+}
+
 const db = new DatabaseSync(DB_PATH);
 
 // Enable WAL mode and foreign keys for performance and integrity
