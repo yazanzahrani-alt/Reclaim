@@ -3,11 +3,13 @@
   "services": {
     "backend": {
       "root": "backend",
-      "runtime": "node"
+      "runtime": "node",
+      "entrypoint": "server.js"
     },
     "frontend": {
       "root": "frontend",
       "runtime": "node",
+      "entrypoint": "server.js",
       "bindings": [
         {
           "type": "service",

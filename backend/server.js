@@ -1314,3 +1314,5 @@ server.listen(PORT, () => {
   console.log(`  SQLite DB    : ${DB_PATH}`);
   console.log('==========================================================');
 });
+
+module.exports = server;
