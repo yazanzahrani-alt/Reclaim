@@ -4,20 +4,15 @@ const path = require('node:path');
 const { getDatabase } = require('./db_adapter.js');
 
 const PORT = process.env.PORT || 5000;
-const isVercel = !!process.env.VERCEL;
-const DB_PATH = isVercel ? path.join('/tmp', 'reclaim.db') : path.join(__dirname, 'reclaim.db');
-
-// If on Vercel serverless and /tmp/reclaim.db does not exist yet, copy seeded template if present
-if (isVercel && !fs.existsSync(DB_PATH)) {
-  const seedTemplate = path.join(__dirname, 'reclaim.db');
-  if (fs.existsSync(seedTemplate)) {
-    try {
-      fs.copyFileSync(seedTemplate, DB_PATH);
-    } catch (e) {
-      // ignore
-    }
-  }
-}
+const isVercel = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.VERCEL_URL ||
+  process.env.NOW_REGION ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  fs.existsSync('/opt/rust/nodejs.js')
+);
+const DB_PATH = isVercel ? ':memory:' : path.join(__dirname, 'reclaim.db');
 
 const { db, isMemory } = getDatabase(DB_PATH);
 
@@ -571,6 +566,17 @@ if (existingUsersCount === 0) {
 
 // Helper for reading JSON request body (supports up to 10MB raw payload so we can validate/compress)
 function parseBody(req) {
+  if (typeof req._rawBody === 'string') {
+    if (!req._rawBody) return Promise.resolve({});
+    try {
+      return Promise.resolve(JSON.parse(req._rawBody));
+    } catch {
+      return Promise.reject(new Error('Invalid JSON payload'));
+    }
+  }
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    return Promise.resolve(req.body);
+  }
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', (chunk) => {
@@ -606,8 +612,13 @@ async function requestHandler(req, res) {
     return sendJson(res, 200, { ok: true });
   }
 
-  const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
-  const pathname = parsedUrl.pathname;
+  const parsedUrl = new URL(req.url || '/', `http://localhost:${PORT}`);
+  const rawPathname = parsedUrl.pathname || '/';
+  // Support both /api/* and Vercel Service prefix-stripped /* paths
+  const pathname =
+    rawPathname === '/api' || rawPathname.startsWith('/api/')
+      ? rawPathname
+      : `/api${rawPathname.startsWith('/') ? '' : '/'}${rawPathname}`;
 
   try {
     // 1. Health & Telemetry Endpoint
@@ -1303,16 +1314,54 @@ async function requestHandler(req, res) {
   }
 }
 
-const isVercelRuntime = Boolean(
-  process.env.VERCEL ||
-  process.env.VERCEL_ENV ||
-  process.env.VERCEL_URL ||
-  process.env.NOW_REGION ||
-  process.env.NODE_ENV === 'production' ||
-  fs.existsSync('/opt/rust/nodejs.js')
-);
+async function fetchHandler(webReq) {
+  const rawBody =
+    webReq.method !== 'GET' && webReq.method !== 'HEAD' && webReq.method !== 'OPTIONS'
+      ? await webReq.text()
+      : '';
 
-if (!isVercelRuntime && require.main === module) {
+  return new Promise((resolve) => {
+    let statusCode = 200;
+    let responseHeaders = {};
+    const mockReq = {
+      method: webReq.method || 'GET',
+      url: webReq.url || '/',
+      headers: Object.fromEntries(webReq.headers.entries()),
+      _rawBody: rawBody,
+      on(event, cb) {
+        if (event === 'data' && rawBody) cb(Buffer.from(rawBody));
+        if (event === 'end') cb();
+      }
+    };
+    const mockRes = {
+      writeHead(code, headers = {}) {
+        statusCode = code;
+        responseHeaders = { ...responseHeaders, ...headers };
+      },
+      setHeader(k, v) {
+        responseHeaders[k] = v;
+      },
+      end(body = '') {
+        resolve(
+          new Response(body, {
+            status: statusCode,
+            headers: responseHeaders
+          })
+        );
+      }
+    };
+    Promise.resolve(requestHandler(mockReq, mockRes)).catch((err) => {
+      resolve(
+        new Response(JSON.stringify({ error: err.message || 'Internal Server Error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json; charset=utf-8' }
+        })
+      );
+    });
+  });
+}
+
+if (!isVercel && require.main === module) {
   const server = http.createServer(requestHandler);
   server.listen(PORT, () => {
     console.log('==========================================================');
@@ -1323,4 +1372,8 @@ if (!isVercelRuntime && require.main === module) {
   });
 }
 
+requestHandler.fetch = fetchHandler;
+requestHandler.default = requestHandler;
 module.exports = requestHandler;
+module.exports.fetch = fetchHandler;
+module.exports.default = requestHandler;

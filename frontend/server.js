@@ -39,11 +39,60 @@ function resolveStaticFile(relPath) {
   return null;
 }
 
-function requestHandler(req, res) {
-  const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
+function getNormalizedAssetKey(pathname) {
+  let cleanPath = (pathname || '/').replace(/\/+$/, '') || '/index.html';
+  if (cleanPath === '') cleanPath = '/index.html';
+  return '/' + cleanPath.replace(/^\/+/, '');
+}
 
-  // Internal Service Binding Proxy: If an /api request arrives at the frontend service
-  // and BACKEND_URL is bound, forward it to the internal backend service.
+// Web Standard fetch(request) handler for Vercel Services / Serverless runtime
+async function fetchHandler(webReq) {
+  const parsedUrl = new URL(webReq.url || '/', `http://localhost:${PORT}`);
+
+  if (parsedUrl.pathname.startsWith('/api') && BACKEND_URL) {
+    try {
+      const targetUrl = new URL(parsedUrl.pathname + parsedUrl.search, BACKEND_URL);
+      const hasBody = webReq.method !== 'GET' && webReq.method !== 'HEAD';
+      return await fetch(targetUrl, {
+        method: webReq.method,
+        headers: webReq.headers,
+        body: hasBody ? await webReq.text() : undefined
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: 'Backend service unavailable', details: err.message }),
+        { status: 502, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
+  const normalizedKey = getNormalizedAssetKey(parsedUrl.pathname);
+
+  if (bundledAssets[normalizedKey]) {
+    const ext = path.extname(normalizedKey).toLowerCase() || '.html';
+    return new Response(bundledAssets[normalizedKey], {
+      status: 200,
+      headers: { 'Content-Type': MIME_TYPES[ext] || 'text/html; charset=utf-8' }
+    });
+  }
+
+  if (bundledAssets['/index.html']) {
+    return new Response(bundledAssets['/index.html'], {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+  }
+
+  return new Response('Frontend asset not found.', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  });
+}
+
+// Standard Node.js (req, res) handler for local development and Node server compatibility
+function requestHandler(req, res) {
+  const parsedUrl = new URL(req.url || '/', `http://localhost:${PORT}`);
+
   if (parsedUrl.pathname.startsWith('/api') && BACKEND_URL) {
     try {
       const targetUrl = new URL(parsedUrl.pathname + parsedUrl.search, BACKEND_URL);
@@ -70,11 +119,24 @@ function requestHandler(req, res) {
     }
   }
 
-  let cleanPath = parsedUrl.pathname.replace(/\/+$/, '') || '/index.html';
-  if (cleanPath === '') cleanPath = '/index.html';
-  const normalizedKey = '/' + cleanPath.replace(/^\/+/, '');
+  const normalizedKey = getNormalizedAssetKey(parsedUrl.pathname);
 
-  // 1. Serve from bundled in-memory assets if available (guarantees Vercel Serverless never misses static files)
+  // 1. Check disk first in local development so live edits to public/* are reflected immediately
+  const safePath = normalizedKey.replace(/^\/+/, '');
+  const localFile = resolveStaticFile(safePath);
+  if (localFile) {
+    try {
+      const content = fs.readFileSync(localFile);
+      const ext = path.extname(localFile).toLowerCase();
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+      res.end(content);
+      return;
+    } catch {
+      // fall through to bundledAssets
+    }
+  }
+
+  // 2. Serve from bundled in-memory assets (guarantees Vercel Serverless never misses static files)
   if (bundledAssets[normalizedKey]) {
     const ext = path.extname(normalizedKey).toLowerCase() || '.html';
     res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'text/html; charset=utf-8' });
@@ -82,36 +144,15 @@ function requestHandler(req, res) {
     return;
   }
 
-  // 2. Otherwise check disk for local dev edits
-  const safePath = normalizedKey.replace(/^\/+/, '');
-  let filePath = resolveStaticFile(safePath);
-
-  if (!filePath) {
-    if (bundledAssets['/index.html']) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(bundledAssets['/index.html']);
-      return;
-    }
-    filePath = resolveStaticFile('index.html');
-  }
-
-  if (!filePath) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Frontend file not found.');
+  // 3. SPA fallback to index.html
+  if (bundledAssets['/index.html']) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(bundledAssets['/index.html']);
     return;
   }
 
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Error reading frontend file.');
-      return;
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-    res.end(content);
-  });
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('Frontend file not found.');
 }
 
 const isVercelRuntime = Boolean(
@@ -119,11 +160,10 @@ const isVercelRuntime = Boolean(
   process.env.VERCEL_ENV ||
   process.env.VERCEL_URL ||
   process.env.NOW_REGION ||
-  process.env.NODE_ENV === 'production' ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
   fs.existsSync('/opt/rust/nodejs.js')
 );
 
-// Only call server.listen() when running locally on your computer, NEVER inside Vercel's runtime
 if (!isVercelRuntime && require.main === module) {
   const server = http.createServer(requestHandler);
   server.listen(PORT, () => {
@@ -135,5 +175,8 @@ if (!isVercelRuntime && require.main === module) {
   });
 }
 
-// Export the callable request handler function for Vercel Serverless Function runtime
+requestHandler.fetch = fetchHandler;
+requestHandler.default = requestHandler;
 module.exports = requestHandler;
+module.exports.fetch = fetchHandler;
+module.exports.default = requestHandler;

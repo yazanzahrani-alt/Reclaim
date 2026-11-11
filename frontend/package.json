@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "Reclaim - Campus Lost and Found System Frontend Web Application",
   "main": "server.js",
-  "engines": {
-    "node": "22.x"
-  },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"

@@ -392,20 +392,29 @@ function createMemoryDb() {
 function getDatabase(dbPath) {
   let sqliteModule = null;
   try {
-    sqliteModule = require('node:sqlite');
+    const sqliteBuiltin = ['node', 'sqlite'].join(':');
+    sqliteModule = require(sqliteBuiltin);
   } catch (e) {
-    console.warn('⚠️ node:sqlite is not available in current Node environment. Activating high-speed in-memory database adapter for Vercel Serverless.');
+    // node:sqlite not available; will use in-memory adapter
   }
 
   if (sqliteModule && sqliteModule.DatabaseSync) {
     try {
       const db = new sqliteModule.DatabaseSync(dbPath);
-      db.exec('PRAGMA journal_mode = WAL;');
+      if (dbPath !== ':memory:') {
+        db.exec('PRAGMA journal_mode = WAL;');
+      }
       db.exec('PRAGMA foreign_keys = ON;');
-      console.log('✅ SQLite engine connected:', dbPath);
-      return { db, isMemory: false };
+      return { db, isMemory: dbPath === ':memory:' };
     } catch (e) {
-      console.warn('⚠️ Failed to open file-based SQLite database:', e.message, '- falling back to in-memory store.');
+      // If file-based DB fails (e.g. read-only serverless filesystem), try native SQLite in-memory first
+      try {
+        const memSqlite = new sqliteModule.DatabaseSync(':memory:');
+        memSqlite.exec('PRAGMA foreign_keys = ON;');
+        return { db: memSqlite, isMemory: true };
+      } catch {
+        // Fall through to pure JS memory store
+      }
     }
   }
 
@@ -414,3 +423,4 @@ function getDatabase(dbPath) {
 }
 
 module.exports = { getDatabase };
+
