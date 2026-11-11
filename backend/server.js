@@ -1303,7 +1303,16 @@ async function requestHandler(req, res) {
   }
 }
 
-if (require.main === module) {
+const isVercelRuntime = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.VERCEL_URL ||
+  process.env.NOW_REGION ||
+  process.env.NODE_ENV === 'production' ||
+  fs.existsSync('/opt/rust/nodejs.js')
+);
+
+if (!isVercelRuntime && require.main === module) {
   const server = http.createServer(requestHandler);
   server.listen(PORT, () => {
     console.log('==========================================================');

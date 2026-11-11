@@ -2,6 +2,7 @@ const http = require('node:http');
 const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
+const bundledAssets = require('./bundled_assets.js');
 
 const PORT = process.env.PORT || 3000;
 const BACKEND_URL = process.env.BACKEND_URL || '';
@@ -69,15 +70,28 @@ function requestHandler(req, res) {
     }
   }
 
-  let safePath = path.normalize(parsedUrl.pathname).replace(/^(\.\.[\/\\])+/, '');
-  if (safePath === '/' || safePath === '\\' || !safePath) {
-    safePath = 'index.html';
+  let cleanPath = parsedUrl.pathname.replace(/\/+$/, '') || '/index.html';
+  if (cleanPath === '') cleanPath = '/index.html';
+  const normalizedKey = '/' + cleanPath.replace(/^\/+/, '');
+
+  // 1. Serve from bundled in-memory assets if available (guarantees Vercel Serverless never misses static files)
+  if (bundledAssets[normalizedKey]) {
+    const ext = path.extname(normalizedKey).toLowerCase() || '.html';
+    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'text/html; charset=utf-8' });
+    res.end(bundledAssets[normalizedKey]);
+    return;
   }
 
+  // 2. Otherwise check disk for local dev edits
+  const safePath = normalizedKey.replace(/^\/+/, '');
   let filePath = resolveStaticFile(safePath);
 
-  // SPA fallback to index.html if file doesn't exist
   if (!filePath) {
+    if (bundledAssets['/index.html']) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(bundledAssets['/index.html']);
+      return;
+    }
     filePath = resolveStaticFile('index.html');
   }
 
@@ -100,8 +114,17 @@ function requestHandler(req, res) {
   });
 }
 
-// When run locally (node server.js / npm start)
-if (require.main === module) {
+const isVercelRuntime = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.VERCEL_URL ||
+  process.env.NOW_REGION ||
+  process.env.NODE_ENV === 'production' ||
+  fs.existsSync('/opt/rust/nodejs.js')
+);
+
+// Only call server.listen() when running locally on your computer, NEVER inside Vercel's runtime
+if (!isVercelRuntime && require.main === module) {
   const server = http.createServer(requestHandler);
   server.listen(PORT, () => {
     console.log('==========================================================');
