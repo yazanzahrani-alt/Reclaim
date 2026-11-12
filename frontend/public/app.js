@@ -32,6 +32,539 @@ const photos = {
 };
 
 // ---------------------------------------------------------------------------
+// Internationalization (Formal Arabic & Formal English) and Theme Management
+// ---------------------------------------------------------------------------
+let currentLang = localStorage.getItem('reclaim_lang') || 'en';
+let currentTheme = localStorage.getItem('reclaim_theme') || 'dark';
+
+const CATEGORY_MAP = {
+  'Electronics': 'إلكترونيات وأجهزة',
+  'ID & Cards': 'بطاقات وهويات',
+  'Bottles & Accessories': 'أوعية وإكسسوارات',
+  'Books & Notes': 'كتب ومذكرات',
+  'Keys & Wallets': 'مفاتيح ومحافظ',
+  'Clothing': 'ملابس ومقتنيات شخصية',
+  'Other': 'أخرى'
+};
+
+const COLOR_MAP = {
+  'Black': 'أسود',
+  'White': 'أبيض',
+  'Gray': 'رمادي',
+  'Silver': 'فضي',
+  'Blue': 'أزرق',
+  'Red': 'أحمر',
+  'Green': 'أخضر',
+  'Yellow': 'أصفر',
+  'Orange': 'برتقالي',
+  'Purple': 'بنفسجي',
+  'Pink': 'وردي',
+  'Brown': 'بني',
+  'Gold': 'ذهبي',
+  'Multicolor': 'متعدد الألوان'
+};
+
+const LOCATION_MAP = {
+  'Engineering Building': 'مبنى كلية الهندسة',
+  'Main Library': 'المكتبة المركزية',
+  'Student Center': 'مركز الأنشطة الطلابية',
+  'Science Complex': 'مجمع كليات العلوم',
+  'Cafeteria': 'المطعم الجامعي / الكافتيريا',
+  'Sports Hall': 'الصالة الرياضية',
+  'Other Campus Area': 'موقع آخر بالحرم الجامعي'
+};
+
+const STATUS_MAP = {
+  'Active': 'نشط',
+  'Claim Pending': 'مطالبة قيد الإجراء',
+  'Approved': 'معتمد للتسليم',
+  'Returned': 'تم التسليم بنجاح',
+  'Resolved': 'مغلق',
+  'Pending': 'قيد المراجعة',
+  'More Proof Requested': 'مطلوب إثبات إضافي',
+  'Hold Item': 'موقوف لدى الإدارة',
+  'Dismissed': 'مرفوض'
+};
+
+const I18N = {
+  en: {
+    brandBadge: 'CAMPUS LOST & FOUND',
+    campusTag: 'CAMPUS L&F',
+    heroTitle: 'Report what you lost or found on campus. Reclaim matches reports automatically and returns items only after an administrator verifies ownership.',
+    feature1Title: 'Automatic matching',
+    feature1Desc: 'New reports are compared with existing ones by category, building, color, brand and keywords.',
+    feature2Title: 'Privacy first',
+    feature2Desc: "Photos of found items stay hidden from other students, and nobody's identity is exposed.",
+    feature3Title: 'Verified handover',
+    feature3Desc: 'Every claim is checked by an administrator before the item is released.',
+    loginTitleSignIn: 'Sign in to Reclaim',
+    loginSubtitleSignIn: 'Enter your username and password. New here? Type a new username and we\'ll help you create the account.',
+    loginTitleRegister: 'Create your account',
+    loginSubtitleRegister: 'Choose a password and confirm it. Your account is created the moment you submit.',
+    usernameLabel: 'Username',
+    passwordLabel: 'Password',
+    confirmPasswordLabel: 'Confirm password',
+    show: 'Show',
+    hide: 'Hide',
+    ruleLength: 'At least 8 characters',
+    ruleNumber: 'At least one number',
+    ruleSpecial: 'At least one special character (! @ # $ % …)',
+    ruleMatch: 'Both passwords match',
+    signInBtn: 'Sign in',
+    createAccountBtn: 'Create account',
+    backToSignIn: '← Back to sign in',
+    navHome: '🏠 Home',
+    navBrowse: '🔍 Search & Browse',
+    navReport: '➕ Report Item',
+    navClaims: '📋 Matches & Claims',
+    navAdmin: '🛡️ Admin Workspace',
+    signOut: 'Sign Out',
+    roleStudent: '🎓 Student',
+    roleAdmin: '🛡️ Administrator',
+    welcomeHeadline: (u) => `Welcome, ${u}`,
+    homeSubtitle: "Lost something, or found something that isn't yours? Report it in under a minute. Reclaim compares it with every open report and notifies the owner if there's a match.",
+    btnReportLost: '📢 Report Lost Item',
+    btnReportFound: '📦 Report Found Item',
+    btnSearchCampus: '🔎 Search Campus Items',
+    statReports: 'Open Reports',
+    statMatches: 'Suggested Matches',
+    statSpeed: 'Last Match Time',
+    statResolved: 'Items Returned',
+    sectionSuggestedMatches: '⚡ Suggested Matches',
+    sectionSuggestedMatchesSub: 'Found items that look like something you reported lost.',
+    sectionRecentReports: '📍 Recent Reports',
+    sectionRecentReportsSub: 'Photos of found items are hidden from other students to prevent false claims.',
+    viewAll: 'View all →',
+    searchAndFilter: 'Search & filter →',
+    browseTitle: '🔍 Search & Filter',
+    browseSubtitle: 'Search every open lost and found report on campus.',
+    filterKeyword: 'Keyword',
+    filterKeywordPlaceholder: 'Charger, calculator, bottle, Dell…',
+    filterType: 'Type',
+    filterTypeAll: 'Lost & Found',
+    filterTypeFound: 'Found only',
+    filterTypeLost: 'Lost only',
+    filterCategory: 'Category',
+    filterCategoryAll: 'All categories',
+    filterLocation: 'Building',
+    filterLocationAll: 'All buildings',
+    filterColor: 'Color',
+    filterColorAll: 'All colors',
+    filterReset: 'Reset',
+    tabLost: '📢 Report a Lost Item',
+    tabLostSub: 'I lost something on campus',
+    tabFound: '📦 Report a Found Item',
+    tabFoundSub: 'I found something and will hand it in',
+    bannerLost: '📢 You will be notified the instant a matching found item is reported.',
+    bannerFound: '🔒 For privacy and security, photos of found items stay blurred for other students until claimed.',
+    fieldTitle: 'Item title *',
+    fieldTitlePlaceholder: 'e.g. Black laptop charger',
+    fieldCategory: 'Category *',
+    fieldColor: 'Main color *',
+    fieldBrand: 'Brand / make',
+    fieldBrandPlaceholder: 'e.g. Dell, Apple, Casio',
+    fieldLocation: 'Campus building / location *',
+    fieldDate: 'When *',
+    fieldDescription: 'Description *',
+    fieldDescriptionPlaceholder: 'Where and how was it lost or found? (at least 10 characters)',
+    fieldMarks: 'Distinguishing marks (serial number, stickers, scratches)',
+    fieldMarksPlaceholder: 'Only the owner and administrators can see this on found items',
+    fieldHandover: 'I am handing the physical item to the Campus Lost & Found office.',
+    fieldPhoto: 'Photo (optional, compressed automatically; max 3 MB)',
+    btnRemovePhoto: 'Remove photo',
+    btnSubmitReport: 'Submit report →',
+    claimMatchesTitle: '⚡ Suggested Matches',
+    claimMatchesSub: 'Submit an ownership claim on any found item that matches something you lost.',
+    myClaimsTitle: '📋 My Ownership Claims',
+    myClaimsSub: 'Pending → (More proof requested) → Approved → Confirm receipt → Returned.',
+    adminTitle: 'Administrator Workspace',
+    adminSub: 'Review ownership claims side by side with the unblurred found item, request more proof, complete handovers and moderate flagged reports.',
+    btnDevOps: '⚡ Open DevOps Console',
+    adminClaimsHeading: '1. Ownership claims',
+    adminFlaggedHeading: '2. Flagged reports',
+    notificationsTitle: '🔔 Notifications',
+    markAllRead: 'Mark all read',
+    devopsTitle: '⚡ DevOps & Administrator Console',
+    devopsSub: 'Review claims, moderate reports, inspect users and system logs, and manage the database.',
+    devopsClose: '✕ Close',
+    devopsTabClaims: '🛡️ Ownership claims',
+    devopsTabMod: '🚨 Flagged reports',
+    devopsTabTelemetry: '📊 System & database',
+    devopsDangerTitle: 'Danger zone',
+    devopsDangerDesc: 'Permanently deletes every report, match, claim, notification, log entry and every account except admin.',
+    devopsWipeBtn: '🗑️ Wipe all data'
+  },
+  ar: {
+    brandBadge: 'نظام المفقودات والموجودات الجامعي',
+    campusTag: 'الأمانات والمفقودات',
+    heroTitle: 'أبلغ عما فقدته أو وجدته داخل الحرم الجامعي. يقوم النظام بمطابقة البلاغات آلياً ولا يتم تسليم المقتنيات إلا بعد التحقق الإداري من الملكية.',
+    feature1Title: 'مطابقة آلية ذكية',
+    feature1Desc: 'تتم مقارنة البلاغات الجديدة آلياً مع الموجودات حسب التصنيف والمبنى واللون والعلامات المميزة.',
+    feature2Title: 'حماية الخصوصية أولاً',
+    feature2Desc: 'تظل صور المعثورات وبيانات الملتقط محجوبة عن بقية الطلاب لمنع ادعاءات الملكية الباطلة.',
+    feature3Title: 'تسليم موثق ومعتمد',
+    feature3Desc: 'تُدقق جميع مطالبات الملكية من قبل إدارة الأمانات قبل اعتماد تسليم أي مقتنى.',
+    loginTitleSignIn: 'تسجيل الدخول إلى ريكليم',
+    loginSubtitleSignIn: 'أدخل اسم المستخدم وكلمة المرور. مستخدم جديد؟ اكتب اسم مستخدم جديد وسنساعدك في إنشاء حسابك فوراً.',
+    loginTitleRegister: 'إنشاء حساب جديد',
+    loginSubtitleRegister: 'اختر كلمة مرور مطابقة للمعايير وأكّدها ليتم إنشاء حسابك فوراً.',
+    usernameLabel: 'اسم المستخدم',
+    passwordLabel: 'كلمة المرور',
+    confirmPasswordLabel: 'تأكيد كلمة المرور',
+    show: 'إظهار',
+    hide: 'إخفاء',
+    ruleLength: '8 أحرف على الأقل',
+    ruleNumber: 'رقم واحد على الأقل',
+    ruleSpecial: 'رمز خاص واحد على الأقل (! @ # $ % …)',
+    ruleMatch: 'تطابق كلمتي المرور',
+    signInBtn: 'تسجيل الدخول',
+    createAccountBtn: 'إنشاء الحساب',
+    backToSignIn: '→ العودة إلى تسجيل الدخول',
+    navHome: '🏠 الرئيسية',
+    navBrowse: '🔍 البحث والتصفح',
+    navReport: '➕ تقديم بلاغ',
+    navClaims: '📋 المطابقات والمطالبات',
+    navAdmin: '🛡️ مساحة الإدارة',
+    signOut: 'تسجيل الخروج',
+    roleStudent: '🎓 طالب',
+    roleAdmin: '🛡️ مسؤول النظام',
+    welcomeHeadline: (u) => `أهلاً بك، ${u}`,
+    homeSubtitle: 'أضعت مقتنى، أو عثرت على ما ليس لك؟ أبلغ عنه الآن. يتولى النظام مطابقة البلاغات وإشعار المالك فور وجود تطابق.',
+    btnReportLost: '📢 الإبلاغ عن مفقود',
+    btnReportFound: '📦 الإبلاغ عن معثور عليه',
+    btnSearchCampus: '🔎 تصفح مقتنيات الحرم',
+    statReports: 'البلاغات المفتوحة',
+    statMatches: 'المطابقات المقترحة',
+    statSpeed: 'سرعة آخر مطابقة',
+    statResolved: 'المقتنيات المستردة',
+    sectionSuggestedMatches: '⚡ المطابقات المقترحة',
+    sectionSuggestedMatchesSub: 'معثورات تطابق مواصفات ما أبلغت عن فقده.',
+    sectionRecentReports: '📍 أحدث البلاغات',
+    sectionRecentReportsSub: 'صور المعثورات محجوبة عن الطلاب لحماية الأمانات ومنع الادعاءات الكاذبة.',
+    viewAll: 'عرض الكل ←',
+    searchAndFilter: 'البحث والتصفية ←',
+    browseTitle: '🔍 البحث والتصفية',
+    browseSubtitle: 'ابحث في جميع بلاغات المفقودات والموجودات داخل الحرم الجامعي.',
+    filterKeyword: 'الكلمة المفتاحية',
+    filterKeywordPlaceholder: 'شاحن، حاسبة، محفظة، ديل…',
+    filterType: 'النوع',
+    filterTypeAll: 'المفقودات والمعثورات',
+    filterTypeFound: 'المعثورات فقط',
+    filterTypeLost: 'المفقودات فقط',
+    filterCategory: 'التصنيف',
+    filterCategoryAll: 'جميع التصنيفات',
+    filterLocation: 'المبنى',
+    filterLocationAll: 'جميع المباني',
+    filterColor: 'اللون',
+    filterColorAll: 'جميع الألوان',
+    filterReset: 'إعادة ضبط',
+    tabLost: '📢 الإبلاغ عن مفقود',
+    tabLostSub: 'أضعت مقتنى شخصياً داخل الحرم الجامعي',
+    tabFound: '📦 الإبلاغ عن معثور عليه',
+    tabFoundSub: 'عثرت على مقتنى وسأقوم بتسليمه للمكتب',
+    bannerLost: '📢 سيتم إشعارك فور تسجيل أي معثور عليه تتطابق مواصفاته مع مفقودك.',
+    bannerFound: '🔒 لحماية الأمانات، لن تظهر الصورة للطلاب الآخرين وسيتعين على المدعي إثبات ملكيته.',
+    fieldTitle: 'عنوان المقتنى *',
+    fieldTitlePlaceholder: 'مثال: شاحن حاسوب محمول أسود',
+    fieldCategory: 'التصنيف *',
+    fieldColor: 'اللون الأساسي *',
+    fieldBrand: 'العلامة التجارية / الصانع',
+    fieldBrandPlaceholder: 'مثال: ديل، آبل، كاسيو',
+    fieldLocation: 'المبنى الجامعي / الموقع *',
+    fieldDate: 'تاريخ ووقت الفقد أو العثور *',
+    fieldDescription: 'الوصف التفصيلي *',
+    fieldDescriptionPlaceholder: 'أين وكيف فُقد أو وُجد المقتنى؟ (10 أحرف على الأقل)',
+    fieldMarks: 'العلامات الفارقة (الرقم التسلسلي، ملصقات، خدوش)',
+    fieldMarksPlaceholder: 'لا يطّلع على هذا الحقل سوى المالك الحقيقي والإدارة في المعثورات',
+    fieldHandover: 'أقرّ بأنني قمت بتسليم المقتنى عيناً إلى مكتب الأمانات والمفقودات بالجامعة.',
+    fieldPhoto: 'صورة المقتنى (اختيارية، تُضغط تلقائياً - حد أقصى 3 ميجابايت)',
+    btnRemovePhoto: 'حذف الصورة',
+    btnSubmitReport: 'إرسال البلاغ ←',
+    claimMatchesTitle: '⚡ المطابقات المقترحة',
+    claimMatchesSub: 'قدّم مطالبة ملكية لأي مقتنى معثور عليه يطابق ما فقدته.',
+    myClaimsTitle: '📋 مطالبات إثبات الملكية الخاصة بي',
+    myClaimsSub: 'قيد المراجعة ← (طُلب إثبات إضافي) ← معتمدة ← تأكيد الاستلام ← تم التسليم.',
+    adminTitle: 'مساحة عمل إدارة الأمانات',
+    adminSub: 'مراجعة مطالبات الملكية مع صورة المعثور عليه غير المحجوبة، وطلب أدلة إضافية، واعتماد التسليم، ومتابعة البلاغات المبلغ عنها.',
+    btnDevOps: '⚡ فتح وحدة تحكم DevOps',
+    adminClaimsHeading: '1. مطالبات الملكية',
+    adminFlaggedHeading: '2. البلاغات المبلغ عنها',
+    notificationsTitle: '🔔 التنبيهات',
+    markAllRead: 'تحديد الكل كمقروء',
+    devopsTitle: '⚡ وحدة تحكم DevOps وإدارة النظام',
+    devopsSub: 'مراجعة المطالبات، ومراقبة العمليات الحية، وفحص المستخدمين وسجلات النظام وإدارة قاعدة البيانات.',
+    devopsClose: '✕ إغلاق',
+    devopsTabClaims: '🛡️ مطالبات الملكية',
+    devopsTabMod: '🚨 البلاغات المبلغ عنها',
+    devopsTabTelemetry: '📊 حالة النظام وقاعدة البيانات',
+    devopsDangerTitle: 'منطقة الإجراءات الحاسمة',
+    devopsDangerDesc: 'حذف جميع البلاغات والمطالبات والمطابقات والتنبيهات وجميع الحسابات نهائياً عدا حساب المسؤول admin.',
+    devopsWipeBtn: '🗑️ مسح وإعادة ضبط البيانات'
+  }
+};
+
+function t(key, ...args) {
+  const dict = I18N[currentLang] || I18N.en;
+  const val = dict[key] ?? (I18N.en[key] ?? key);
+  return typeof val === 'function' ? val(...args) : val;
+}
+
+function setTheme(theme) {
+  currentTheme = theme;
+  localStorage.setItem('reclaim_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+
+  const icon = theme === 'dark' ? '☀️' : '🌙';
+  const title = theme === 'dark'
+    ? (currentLang === 'ar' ? 'التبديل إلى الوضع النهاري' : 'Switch to Light Mode')
+    : (currentLang === 'ar' ? 'التبديل إلى الوضع الليلي' : 'Switch to Dark Mode');
+
+  if ($('login-theme-btn')) { $('login-theme-btn').textContent = icon; $('login-theme-btn').title = title; }
+  if ($('nav-theme-btn')) { $('nav-theme-btn').textContent = icon; $('nav-theme-btn').title = title; }
+}
+
+function toggleTheme() {
+  setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+}
+
+function setLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('reclaim_lang', lang);
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+  const langText = currentLang === 'ar' ? '🌐 English' : '🌐 العربية';
+  if ($('login-lang-btn')) $('login-lang-btn').textContent = langText;
+  if ($('nav-lang-btn')) $('nav-lang-btn').textContent = langText;
+
+  setTheme(currentTheme);
+  updateStaticI18n();
+
+  if (meta && meta.categories && meta.categories.length) {
+    fillSelect('filter-category', meta.categories, t('filterCategoryAll'), CATEGORY_MAP);
+    fillSelect('filter-location', meta.locations, t('filterLocationAll'), LOCATION_MAP);
+    fillSelect('filter-color', meta.colors, t('filterColorAll'), COLOR_MAP);
+    fillSelect('rep-category', meta.categories, '', CATEGORY_MAP);
+    fillSelect('rep-color', meta.colors, '', COLOR_MAP);
+    fillSelect('rep-location', meta.locations, '', LOCATION_MAP);
+  }
+
+  if (currentUser) {
+    updateUserHeader();
+    renderStatsAndBadges();
+    renderHomeView();
+    applySearchFilters();
+    renderClaimsAndMatchesView();
+    renderAdminWorkspaceView();
+    renderNotificationsDrawer();
+    renderDevOpsConsole();
+  }
+}
+
+function toggleLanguage() {
+  setLanguage(currentLang === 'ar' ? 'en' : 'ar');
+}
+
+function updateStaticI18n() {
+  // Login Hero
+  const brandBadge = document.querySelector('.brand-badge span:last-child');
+  if (brandBadge) brandBadge.textContent = t('brandBadge');
+  const heroSub = document.querySelector('.hero-subtitle');
+  if (heroSub) heroSub.textContent = t('heroTitle');
+
+  const featureItems = document.querySelectorAll('.hero-feature-item');
+  if (featureItems.length >= 3) {
+    featureItems[0].querySelector('h4').textContent = t('feature1Title');
+    featureItems[0].querySelector('p').textContent = t('feature1Desc');
+    featureItems[1].querySelector('h4').textContent = t('feature2Title');
+    featureItems[1].querySelector('p').textContent = t('feature2Desc');
+    featureItems[2].querySelector('h4').textContent = t('feature3Title');
+    featureItems[2].querySelector('p').textContent = t('feature3Desc');
+  }
+
+  // Login Form
+  $('login-title').textContent = authMode === 'register' ? t('loginTitleRegister') : t('loginTitleSignIn');
+  $('login-subtitle').textContent = authMode === 'register' ? t('loginSubtitleRegister') : t('loginSubtitleSignIn');
+  const userLabel = document.querySelector('label[for="login-username"]');
+  if (userLabel) userLabel.textContent = t('usernameLabel');
+  const passLabel = document.querySelector('label[for="login-password"]');
+  if (passLabel) passLabel.textContent = t('passwordLabel');
+  const confLabel = document.querySelector('label[for="login-confirm"]');
+  if (confLabel) confLabel.textContent = t('confirmPasswordLabel');
+  $('login-submit').textContent = authMode === 'register' ? t('createAccountBtn') : t('signInBtn');
+  $('login-back').textContent = t('backToSignIn');
+  $('toggle-password').textContent = $('login-password').type === 'password' ? t('show') : t('hide');
+
+  updatePasswordRules();
+
+  // Navbar
+  const campusTag = document.querySelector('.campus-tag');
+  if (campusTag) campusTag.textContent = t('campusTag');
+  const navBtns = document.querySelectorAll('.main-nav .nav-btn');
+  if (navBtns.length >= 5) {
+    navBtns[0].childNodes[0].nodeValue = t('navHome') + ' ';
+    navBtns[1].childNodes[0].nodeValue = t('navBrowse') + ' ';
+    navBtns[2].childNodes[0].nodeValue = t('navReport') + ' ';
+    navBtns[3].childNodes[0].nodeValue = t('navClaims') + ' ';
+    navBtns[4].childNodes[0].nodeValue = t('navAdmin') + ' ';
+  }
+  const signOutBtn = document.querySelector('.nav-right .btn-outline');
+  if (signOutBtn) signOutBtn.textContent = t('signOut');
+
+  // Home Hero Banner
+  const homeP = document.querySelector('.hero-banner-text p');
+  if (homeP) homeP.textContent = t('homeSubtitle');
+  const heroActions = document.querySelectorAll('.hero-actions button');
+  if (heroActions.length >= 3) {
+    heroActions[0].textContent = t('btnReportLost');
+    heroActions[1].textContent = t('btnReportFound');
+    heroActions[2].textContent = t('btnSearchCampus');
+  }
+  const statLabels = document.querySelectorAll('.stat-card .stat-label');
+  if (statLabels.length >= 4) {
+    statLabels[0].textContent = t('statReports');
+    statLabels[1].textContent = t('statMatches');
+    statLabels[2].textContent = t('statSpeed');
+    statLabels[3].textContent = t('statResolved');
+  }
+
+  // Home Sections
+  const homeSecHeaders = document.querySelectorAll('#view-home .section-header');
+  if (homeSecHeaders.length >= 2) {
+    homeSecHeaders[0].querySelector('h2').textContent = t('sectionSuggestedMatches');
+    homeSecHeaders[0].querySelector('p').textContent = t('sectionSuggestedMatchesSub');
+    homeSecHeaders[0].querySelector('button').textContent = t('viewAll');
+    homeSecHeaders[1].querySelector('h2').textContent = t('sectionRecentReports');
+    homeSecHeaders[1].querySelector('p').textContent = t('sectionRecentReportsSub');
+    homeSecHeaders[1].querySelector('button').textContent = t('searchAndFilter');
+  }
+
+  // Browse View
+  const browseHeader = document.querySelector('#view-browse .page-title-bar');
+  if (browseHeader) {
+    browseHeader.querySelector('h2').textContent = t('browseTitle');
+    browseHeader.querySelector('p').textContent = t('browseSubtitle');
+  }
+  const browseButtons = document.querySelectorAll('#view-browse .page-title-actions button');
+  if (browseButtons.length >= 2) {
+    browseButtons[0].textContent = t('btnReportLost');
+    browseButtons[1].textContent = t('btnReportFound');
+  }
+  const filterGroups = document.querySelectorAll('.filter-bar .filter-group label');
+  if (filterGroups.length >= 5) {
+    filterGroups[0].textContent = t('filterKeyword');
+    filterGroups[1].textContent = t('filterType');
+    filterGroups[2].textContent = t('filterCategory');
+    filterGroups[3].textContent = t('filterLocation');
+    filterGroups[4].textContent = t('filterColor');
+  }
+  $('filter-q').placeholder = t('filterKeywordPlaceholder');
+  const filterTypeSelect = $('filter-type');
+  if (filterTypeSelect && filterTypeSelect.options.length >= 3) {
+    filterTypeSelect.options[0].text = t('filterTypeAll');
+    filterTypeSelect.options[1].text = t('filterTypeFound');
+    filterTypeSelect.options[2].text = t('filterTypeLost');
+  }
+  const resetBtn = document.querySelector('.filter-reset button');
+  if (resetBtn) resetBtn.textContent = t('filterReset');
+
+  // Report View
+  const tabLostBtn = $('tab-btn-lost');
+  if (tabLostBtn) {
+    tabLostBtn.childNodes[0].nodeValue = t('tabLost') + ' ';
+    const sub = tabLostBtn.querySelector('span');
+    if (sub) sub.textContent = t('tabLostSub');
+  }
+  const tabFoundBtn = $('tab-btn-found');
+  if (tabFoundBtn) {
+    tabFoundBtn.childNodes[0].nodeValue = t('tabFound') + ' ';
+    const sub = tabFoundBtn.querySelector('span');
+    if (sub) sub.textContent = t('tabFoundSub');
+  }
+  const repLabels = document.querySelectorAll('#create-report-form .form-group label');
+  if (repLabels.length >= 7) {
+    repLabels[0].textContent = t('fieldTitle');
+    repLabels[1].textContent = t('fieldCategory');
+    repLabels[2].textContent = t('fieldColor');
+    repLabels[3].textContent = t('fieldBrand');
+    repLabels[4].textContent = t('fieldLocation');
+    repLabels[5].textContent = t('fieldDate');
+    repLabels[6].textContent = t('fieldDescription');
+  }
+  $('rep-title').placeholder = t('fieldTitlePlaceholder');
+  $('rep-brand').placeholder = t('fieldBrandPlaceholder');
+  $('rep-description').placeholder = t('fieldDescriptionPlaceholder');
+  const repMarksLabel = document.querySelector('label[for="rep-marks"]');
+  if (repMarksLabel) repMarksLabel.textContent = t('fieldMarks');
+  $('rep-marks').placeholder = t('fieldMarksPlaceholder');
+  const handedSpan = document.querySelector('#found-handover-box .checkbox-label span');
+  if (handedSpan) handedSpan.textContent = t('fieldHandover');
+  const repPhotoZone = document.querySelector('#create-report-form .photo-upload-zone');
+  if (repPhotoZone && repPhotoZone.parentElement) {
+    const repPhotoLabel = repPhotoZone.parentElement.querySelector('label');
+    if (repPhotoLabel) repPhotoLabel.textContent = t('fieldPhoto');
+  }
+  const repClearBtn = document.querySelector('#create-report-form .btn-chip');
+  if (repClearBtn) repClearBtn.textContent = t('btnRemovePhoto');
+  $('report-submit').textContent = t('btnSubmitReport');
+
+  // Claims View
+  const claimsSecHeaders = document.querySelectorAll('#view-claims .section-header');
+  if (claimsSecHeaders.length >= 2) {
+    claimsSecHeaders[0].querySelector('h2').textContent = t('claimMatchesTitle');
+    claimsSecHeaders[0].querySelector('p').textContent = t('claimMatchesSub');
+    claimsSecHeaders[1].querySelector('h2').textContent = t('myClaimsTitle');
+    claimsSecHeaders[1].querySelector('p').textContent = t('myClaimsSub');
+  }
+
+  // Admin View
+  const adminBanner = document.querySelector('.admin-workspace-banner');
+  if (adminBanner) {
+    const pill = adminBanner.querySelector('.admin-pill');
+    if (pill) pill.textContent = t('roleAdmin');
+    const h2 = adminBanner.querySelector('h2');
+    if (h2) h2.textContent = t('adminTitle');
+    const p = adminBanner.querySelector('p');
+    if (p) p.textContent = t('adminSub');
+    const devBtn = adminBanner.querySelector('.btn-devops-trigger');
+    if (devBtn) devBtn.textContent = t('btnDevOps');
+  }
+  const adminHeadings = document.querySelectorAll('#view-admin h3');
+  if (adminHeadings.length >= 2) {
+    adminHeadings[0].textContent = t('adminClaimsHeading');
+    adminHeadings[1].textContent = t('adminFlaggedHeading');
+  }
+
+  // Modals & Drawers
+  const notifHeader = document.querySelector('.notif-drawer-header h3');
+  if (notifHeader) notifHeader.textContent = t('notificationsTitle');
+  const notifMarkAll = document.querySelector('.notif-header-actions .btn-link');
+  if (notifMarkAll) notifMarkAll.textContent = t('markAllRead');
+
+  const devopsTitleGroup = document.querySelector('.devops-title-group');
+  if (devopsTitleGroup) {
+    const chip = devopsTitleGroup.querySelector('.devops-chip');
+    if (chip) chip.textContent = t('roleAdmin');
+    const h2 = devopsTitleGroup.querySelector('h2');
+    if (h2) h2.textContent = t('devopsTitle');
+    const p = devopsTitleGroup.querySelector('p');
+    if (p) p.textContent = t('devopsSub');
+  }
+  const devopsClose = document.querySelector('.devops-close-btn');
+  if (devopsClose) devopsClose.textContent = t('devopsClose');
+
+  const devopsDanger = document.querySelector('.telemetry-card.danger-zone');
+  if (devopsDanger) {
+    const h4 = devopsDanger.querySelector('h4');
+    if (h4) h4.textContent = t('devopsDangerTitle');
+    const p = devopsDanger.querySelector('p');
+    if (p) p.innerHTML = t('devopsDangerDesc');
+    const wipeBtn = $('devops-wipe-btn');
+    if (wipeBtn) wipeBtn.textContent = t('devopsWipeBtn');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
@@ -57,7 +590,8 @@ function showToast(message, kind = 'info') {
 function formatWhen(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value ?? '');
-  return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  const locale = currentLang === 'ar' ? 'ar-SA' : 'en-US';
+  return d.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 async function api(path, { method = 'GET', body, auth = true } = {}) {
@@ -72,18 +606,19 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined
     });
   } catch {
-    throw new Error('Cannot reach the server. Make sure the backend is running (npm run dev:backend).');
+    throw new Error(currentLang === 'ar' ? 'تعذر الاتصال بالخادم. تأكد من تشغيل الخلفية (npm run dev:backend).' : 'Cannot reach the server. Make sure the backend is running (npm run dev:backend).');
   }
 
   let data = {};
   try { data = await res.json(); } catch { /* empty body */ }
 
   if (res.status === 401 && auth && token) {
-    forceSignedOut('Your session has expired. Please sign in again.');
-    throw new Error('Your session has expired. Please sign in again.');
+    const expiredMsg = currentLang === 'ar' ? 'انتهت صلاحية جلستك. يرجى تسجيل الدخول مجدداً.' : 'Your session has expired. Please sign in again.';
+    forceSignedOut(expiredMsg);
+    throw new Error(expiredMsg);
   }
   if (!res.ok) {
-    const err = new Error(data.error || 'Request failed.');
+    const err = new Error(data.error || (currentLang === 'ar' ? 'فشل تنفيذ الطلب.' : 'Request failed.'));
     err.code = data.code;
     err.status = res.status;
     err.details = data;
@@ -109,14 +644,28 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('more-proof-form').addEventListener('submit', handleMoreProofSubmit);
   document.addEventListener('click', handleDelegatedClick);
 
+  // Theme & Language toggles
+  const loginTheme = $('login-theme-btn');
+  if (loginTheme) loginTheme.addEventListener('click', toggleTheme);
+  const navTheme = $('nav-theme-btn');
+  if (navTheme) navTheme.addEventListener('click', toggleTheme);
+
+  const loginLang = $('login-lang-btn');
+  if (loginLang) loginLang.addEventListener('click', toggleLanguage);
+  const navLang = $('nav-lang-btn');
+  if (navLang) navLang.addEventListener('click', toggleLanguage);
+
+  setTheme(currentTheme);
+  setLanguage(currentLang);
+
   try {
     meta = await api('/meta', { auth: false });
-    fillSelect('filter-category', meta.categories, 'All categories');
-    fillSelect('filter-location', meta.locations, 'All buildings');
-    fillSelect('filter-color', meta.colors, 'All colors');
-    fillSelect('rep-category', meta.categories);
-    fillSelect('rep-color', meta.colors);
-    fillSelect('rep-location', meta.locations);
+    fillSelect('filter-category', meta.categories, t('filterCategoryAll'), CATEGORY_MAP);
+    fillSelect('filter-location', meta.locations, t('filterLocationAll'), LOCATION_MAP);
+    fillSelect('filter-color', meta.colors, t('filterColorAll'), COLOR_MAP);
+    fillSelect('rep-category', meta.categories, '', CATEGORY_MAP);
+    fillSelect('rep-color', meta.colors, '', COLOR_MAP);
+    fillSelect('rep-location', meta.locations, '', LOCATION_MAP);
   } catch (err) {
     showLoginError(err.message);
   }
@@ -142,10 +691,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   }, 30000);
 });
 
-function fillSelect(id, values, allLabel) {
+function fillSelect(id, values, allLabel, map = null) {
   const select = $(id);
+  if (!select) return;
   const options = allLabel ? [`<option value="ALL">${escapeHtml(allLabel)}</option>`] : [];
-  values.forEach((v) => options.push(`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`));
+  (values || []).forEach((v) => {
+    const label = (currentLang === 'ar' && map && map[v]) ? map[v] : v;
+    options.push(`<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`);
+  });
   select.innerHTML = options.join('');
 }
 
@@ -167,7 +720,7 @@ function togglePasswordVisibility() {
   const reveal = input.type === 'password';
   input.type = reveal ? 'text' : 'password';
   confirm.type = reveal ? 'text' : 'password';
-  $('toggle-password').textContent = reveal ? 'Hide' : 'Show';
+  $('toggle-password').textContent = reveal ? t('hide') : t('show');
 }
 
 function setAuthMode(mode, notice = '') {
@@ -175,13 +728,14 @@ function setAuthMode(mode, notice = '') {
   const register = mode === 'register';
   $('register-extra').classList.toggle('hidden', !register);
   $('login-back').classList.toggle('hidden', !register);
-  $('login-title').textContent = register ? 'Create your account' : 'Sign in to Reclaim';
+  $('login-title').textContent = register ? t('loginTitleRegister') : t('loginTitleSignIn');
   $('login-subtitle').textContent = register
-    ? 'Choose a password and confirm it. Your account is created the moment you submit.'
-    : "Enter your username and password. New here? Type a new username and we'll help you create the account.";
-  $('login-submit').textContent = register ? 'Create account' : 'Sign in';
+    ? t('loginSubtitleRegister')
+    : t('loginSubtitleSignIn');
+  $('login-submit').textContent = register ? t('createAccountBtn') : t('signInBtn');
   $('login-password').autocomplete = register ? 'new-password' : 'current-password';
   $('login-username').readOnly = register;
+  $('login-back').textContent = t('backToSignIn');
   hide($('login-error'));
   const noticeBox = $('login-notice');
   if (notice) { noticeBox.textContent = notice; show(noticeBox); } else { hide(noticeBox); }
@@ -211,7 +765,12 @@ function updatePasswordRules() {
   document.querySelectorAll('#pw-rules .pw-rule').forEach((li) => {
     const ok = checks[li.dataset.rule];
     li.classList.toggle('ok', ok);
-    li.querySelector('.pw-rule-mark').textContent = ok ? '✓' : '○';
+    const ruleKey = li.dataset.rule;
+    const ruleLabel = ruleKey === 'length' ? t('ruleLength')
+      : ruleKey === 'number' ? t('ruleNumber')
+      : ruleKey === 'special' ? t('ruleSpecial')
+      : t('ruleMatch');
+    li.innerHTML = `<span class="pw-rule-mark">${ok ? '✓' : '○'}</span> ${escapeHtml(ruleLabel)}`;
   });
   return checks;
 }
@@ -317,9 +876,9 @@ function updateUserHeader() {
   const isAdmin = currentUser.role === 'admin';
   $('header-user-avatar').textContent = (currentUser.username || 'U').charAt(0).toUpperCase();
   $('header-username').textContent = `@${currentUser.username}`;
-  $('header-user-role').textContent = isAdmin ? '🛡️ Administrator' : '🎓 Student';
+  $('header-user-role').textContent = isAdmin ? t('roleAdmin') : t('roleStudent');
   $('nav-admin-tab').classList.toggle('hidden', !isAdmin);
-  $('welcome-headline').textContent = `Welcome, ${currentUser.username}`;
+  $('welcome-headline').textContent = t('welcomeHeadline', currentUser.username);
 }
 
 // ---------------------------------------------------------------------------
@@ -402,65 +961,100 @@ function emptyState(text) {
 }
 
 function buildMatchCardHtml(m) {
-  const tags = (m.matched_attributes || []).map((t) => `<span class="match-attr-tag">✓ ${escapeHtml(t)}</span>`).join('');
+  const isAr = currentLang === 'ar';
+  const tags = (m.matched_attributes || []).map((tag) => {
+    let text = tag;
+    if (isAr) {
+      text = tag
+        .replace(/^Category:\s*(.+)$/, (_, c) => `التصنيف: ${CATEGORY_MAP[c] || c}`)
+        .replace(/^Location:\s*(.+)$/, (_, l) => `الموقع: ${LOCATION_MAP[l] || l}`)
+        .replace(/^Color:\s*(.+)$/, (_, col) => `اللون: ${COLOR_MAP[col] || col}`)
+        .replace(/^Brand:\s*(.+)$/, (_, b) => `العلامة: ${b}`)
+        .replace(/^Keywords:\s*(.+)$/, (_, k) => `كلمات مشتركة: ${k}`);
+    }
+    return `<span class="match-attr-tag">✓ ${escapeHtml(text)}</span>`;
+  }).join('');
+
   const closed = ['Returned', 'Resolved'].includes(m.found_status);
   const action = closed
-    ? '<span class="btn btn-sm" style="background:#d1fae5;color:#047857;">✅ Returned</span>'
-    : `<button class="btn btn-primary btn-sm" data-action="claim" data-id="${m.found_report_id}" data-lost="${m.lost_report_id}">🛡️ Submit ownership claim</button>`;
+    ? `<span class="btn btn-sm" style="background:#d1fae5;color:#047857;">✅ ${escapeHtml(isAr ? 'تم التسليم' : 'Returned')}</span>`
+    : `<button class="btn btn-primary btn-sm" data-action="claim" data-id="${m.found_report_id}" data-lost="${m.lost_report_id}">🛡️ ${escapeHtml(isAr ? 'تقديم مطالبة إثبات ملكية' : 'Submit ownership claim')}</button>`;
+
+  const scoreLabel = isAr ? 'نسبة تطابق' : 'match';
+  const speedLabel = isAr ? `المطابقة في ${m.match_time_ms} مللي ثانية` : `Matched in ${m.match_time_ms} ms`;
+  const lostHeader = isAr ? `📢 بلاغ مفقود #${m.lost_report_id}` : `📢 Lost report #${m.lost_report_id}`;
+  const foundHeader = isAr ? `📦 بلاغ معثور عليه #${m.found_report_id}` : `📦 Found report #${m.found_report_id}`;
+  const statusLabel = isAr ? (STATUS_MAP[m.found_status] || m.found_status) : m.found_status;
+
+  const lostLoc = isAr ? (LOCATION_MAP[m.lost_location] || m.lost_location) : m.lost_location;
+  const lostCol = isAr ? (COLOR_MAP[m.lost_color] || m.lost_color) : m.lost_color;
+  const foundLoc = isAr ? (LOCATION_MAP[m.found_location] || m.found_location) : m.found_location;
+  const foundCol = isAr ? (COLOR_MAP[m.found_color] || m.found_color) : m.found_color;
 
   return `
     <div class="match-card">
       <div class="match-header">
-        <span class="match-score-pill">⚡ ${m.score}% match</span>
-        <span class="match-speed-tag">Matched in ${m.match_time_ms} ms</span>
+        <span class="match-score-pill">⚡ ${m.score}% ${scoreLabel}</span>
+        <span class="match-speed-tag">${speedLabel}</span>
       </div>
       <div class="match-compare-row">
         <div class="match-side">
-          <span class="match-side-title" style="color:#dc2626;">📢 Lost report #${m.lost_report_id}</span>
+          <span class="match-side-title" style="color:#dc2626;">${lostHeader}</span>
           <strong>${escapeHtml(m.lost_title)}</strong>
-          <div style="font-size:12px;color:#475569;margin-top:4px;">📍 ${escapeHtml(m.lost_location)} • ${escapeHtml(m.lost_color)} • ${escapeHtml(m.lost_brand || 'No brand')}</div>
+          <div style="font-size:12px;margin-top:4px;">📍 ${escapeHtml(lostLoc)} • ${escapeHtml(lostCol)} • ${escapeHtml(m.lost_brand || (isAr ? 'بدون علامة' : 'No brand'))}</div>
         </div>
         <div class="match-side">
-          <span class="match-side-title" style="color:#059669;">📦 Found report #${m.found_report_id}</span>
+          <span class="match-side-title" style="color:#059669;">${foundHeader}</span>
           <strong>${escapeHtml(m.found_title)}</strong>
-          <div style="font-size:12px;color:#475569;margin-top:4px;">📍 ${escapeHtml(m.found_location)} • ${escapeHtml(m.found_color)}</div>
+          <div style="font-size:12px;margin-top:4px;">📍 ${escapeHtml(foundLoc)} • ${escapeHtml(foundCol)}</div>
         </div>
       </div>
       <div class="match-tags-row">${tags}</div>
       <div class="match-footer">
-        <span style="font-size:12px;color:#64748b;">Status: <strong>${escapeHtml(m.found_status)}</strong></span>
+        <span style="font-size:12px;color:var(--text-light);">${isAr ? 'الحالة:' : 'Status:'} <strong>${escapeHtml(statusLabel)}</strong></span>
         <div style="display:flex;gap:8px;">${action}</div>
       </div>
     </div>`;
 }
 
 function buildReportCardHtml(r) {
+  const isAr = currentLang === 'ar';
   const photo = r.photo_url
     ? `<img src="${escapeHtml(r.photo_url)}" alt="" />`
-    : '<div class="no-photo">No photo</div>';
+    : `<div class="no-photo">${escapeHtml(isAr ? 'لا توجد صورة' : 'No photo')}</div>`;
   const overlay = r.should_blur_photo
     ? `<div class="privacy-blur-overlay">
-         <span class="privacy-blur-pill">🔒 Photo hidden for privacy</span>
-         <span class="privacy-blur-sub">Only the finder and administrators can see this photo, to prevent false claims.</span>
+         <span class="privacy-blur-pill">🔒 ${escapeHtml(isAr ? 'الصورة محجوبة لحماية الخصوصية' : 'Photo hidden for privacy')}</span>
+         <span class="privacy-blur-sub">${escapeHtml(isAr ? 'لا يظهر الأصل سوى للملتقط والإدارة لمنع مطالبات التملك الباطلة.' : 'Only the finder and administrators can see this photo, to prevent false claims.')}</span>
        </div>`
     : '';
   const banner = r.is_suspicious
-    ? `<div class="alert-box alert-warn" style="margin-top:10px;font-size:11.5px;">🚨 <strong>Under review:</strong> ${escapeHtml(r.suspicious_reason || 'An administrator is reviewing this report.')}</div>`
+    ? `<div class="alert-box alert-warn" style="margin-top:10px;font-size:11.5px;">🚨 <strong>${escapeHtml(isAr ? 'قيد المراجعة الإدارية:' : 'Under review:')}</strong> ${escapeHtml(r.suspicious_reason || (isAr ? 'يقوم مسؤول النظام بمراجعة هذا البلاغ.' : 'An administrator is reviewing this report.'))}</div>`
     : '';
   const closed = ['Returned', 'Resolved'].includes(r.status);
   const canClaim = r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
 
   const buttons = [];
-  if (canClaim) buttons.push(`<button class="btn btn-primary btn-sm" data-action="claim" data-id="${r.id}">Submit claim</button>`);
-  if (!r.is_mine && !r.is_suspicious) buttons.push(`<button class="btn btn-outline btn-sm" title="Flag as suspicious or duplicate" data-action="flag" data-id="${r.id}">🚩</button>`);
-  if (r.is_mine && !closed) buttons.push(`<button class="btn btn-outline btn-sm" title="Delete my report" data-action="delete-report" data-id="${r.id}">🗑️</button>`);
+  if (canClaim) buttons.push(`<button class="btn btn-primary btn-sm" data-action="claim" data-id="${r.id}">${escapeHtml(isAr ? 'تقديم مطالبة' : 'Submit claim')}</button>`);
+  if (!r.is_mine && !r.is_suspicious) buttons.push(`<button class="btn btn-outline btn-sm" title="${escapeHtml(isAr ? 'إبلاغ عن شبهة أو تكرار' : 'Flag as suspicious or duplicate')}" data-action="flag" data-id="${r.id}">🚩</button>`);
+  if (r.is_mine && !closed) buttons.push(`<button class="btn btn-outline btn-sm" title="${escapeHtml(isAr ? 'حذف بلاغي' : 'Delete my report')}" data-action="delete-report" data-id="${r.id}">🗑️</button>`);
+
+  const typeLabel = r.type === 'LOST'
+    ? (isAr ? '📢 مفقود' : '📢 LOST')
+    : (isAr ? '📦 معثور عليه' : '📦 FOUND');
+  const statusLabel = isAr ? (STATUS_MAP[r.status] || r.status) : r.status;
+  const locLabel = isAr ? (LOCATION_MAP[r.location] || r.location) : r.location;
+  const catLabel = isAr ? (CATEGORY_MAP[r.category] || r.category) : r.category;
+  const colLabel = isAr ? (COLOR_MAP[r.color] || r.color) : r.color;
+  const marksHeading = isAr ? 'العلامات الفارقة:' : 'Distinguishing marks:';
+  const reporterPrefix = isAr ? '👤 البلاغ بواسطة' : '👤';
 
   return `
     <div class="report-card ${r.is_suspicious ? 'suspicious-card' : ''}">
       <div class="report-img-wrap ${r.should_blur_photo ? 'privacy-blurred' : ''}">
         <div class="report-badges-top">
-          <span class="type-badge ${r.type}">${r.type === 'LOST' ? '📢 LOST' : '📦 FOUND'}</span>
-          <span class="status-badge">${escapeHtml(r.status)}</span>
+          <span class="type-badge ${r.type}">${typeLabel}</span>
+          <span class="status-badge">${escapeHtml(statusLabel)}</span>
         </div>
         ${photo}
         ${overlay}
@@ -469,17 +1063,17 @@ function buildReportCardHtml(r) {
         <div>
           <h4 class="report-title">${escapeHtml(r.title)}</h4>
           <div class="report-meta-tags">
-            <span class="meta-pill">📍 ${escapeHtml(r.location)}</span>
-            <span class="meta-pill">🏷️ ${escapeHtml(r.category)}</span>
-            <span class="meta-pill">🎨 ${escapeHtml(r.color)}</span>
+            <span class="meta-pill">📍 ${escapeHtml(locLabel)}</span>
+            <span class="meta-pill">🏷️ ${escapeHtml(catLabel)}</span>
+            <span class="meta-pill">🎨 ${escapeHtml(colLabel)}</span>
             ${r.brand ? `<span class="meta-pill">✨ ${escapeHtml(r.brand)}</span>` : ''}
           </div>
           <p class="report-desc">${escapeHtml(r.description)}</p>
-          <div class="report-marks-box"><strong>Distinguishing marks:</strong> ${escapeHtml(r.distinguishing_marks_display)}</div>
+          <div class="report-marks-box"><strong>${marksHeading}</strong> ${escapeHtml(r.distinguishing_marks_display)}</div>
           ${banner}
         </div>
         <div class="report-footer">
-          <span class="reporter-privacy-tag">👤 ${escapeHtml(r.reporter_label)} • ${escapeHtml(formatWhen(r.date_lost_found))}</span>
+          <span class="reporter-privacy-tag">${reporterPrefix} ${escapeHtml(r.reporter_label)} • ${escapeHtml(formatWhen(r.date_lost_found))}</span>
           <div style="display:flex;gap:6px;">${buttons.join('')}</div>
         </div>
       </div>
@@ -489,20 +1083,22 @@ function buildReportCardHtml(r) {
 function renderHomeView() {
   if (!currentUser) return;
   const isAdmin = currentUser.role === 'admin';
+  const isAr = currentLang === 'ar';
   $('home-matches-container').innerHTML = allMatches.length
     ? allMatches.slice(0, 4).map(buildMatchCardHtml).join('')
     : emptyState(isAdmin
-      ? 'No matches yet. They appear automatically when a lost and a found report look alike.'
-      : 'No matches yet. If you report a lost item, any matching found item will show up here.');
+      ? (isAr ? 'لا توجد مطابقات حالياً. تظهر المطابقات آلياً عند تسجيل بلاغين متشابهين.' : 'No matches yet. They appear automatically when a lost and a found report look alike.')
+      : (isAr ? 'لا توجد مطابقات حالياً. إذا قدمت بلاغاً عن مفقود، ستظهر أي معثورات مطابقة هنا.' : 'No matches yet. If you report a lost item, any matching found item will show up here.'));
 
   const visible = allReports.filter((r) => !r.is_suspicious || r.is_mine || isAdmin);
   $('home-reports-container').innerHTML = visible.length
     ? visible.slice(0, 6).map(buildReportCardHtml).join('')
-    : emptyState('No reports yet. Be the first — report a lost or found item.');
+    : emptyState(isAr ? 'لا توجد بلاغات مسجلة حالياً. كن أول من يبلغ عن مفقود أو معثور عليه.' : 'No reports yet. Be the first — report a lost or found item.');
 }
 
 function applySearchFilters() {
   if (!currentUser) return;
+  const isAr = currentLang === 'ar';
   const q = ($('filter-q').value || '').trim().toLowerCase();
   const type = $('filter-type').value;
   const category = $('filter-category').value;
@@ -521,7 +1117,9 @@ function applySearchFilters() {
 
   $('browse-reports-container').innerHTML = list.length
     ? list.map(buildReportCardHtml).join('')
-    : emptyState(allReports.length ? 'No items match your filters.' : 'No reports yet.');
+    : emptyState(allReports.length
+      ? (isAr ? 'لا توجد مقتنيات تطابق معايير البحث والتصفية.' : 'No items match your filters.')
+      : (isAr ? 'لا توجد بلاغات مسجلة بعد.' : 'No reports yet.'));
 }
 
 function resetSearchFilters() {
@@ -553,9 +1151,7 @@ function setReportFormType(type) {
   $('tab-btn-lost').className = `type-switch-btn${found ? '' : ' active-lost'}`;
   $('tab-btn-found').className = `type-switch-btn${found ? ' active-found' : ''}`;
   $('found-handover-box').classList.toggle('hidden', !found);
-  $('report-form-banner').innerHTML = found
-    ? '<strong>Found item:</strong> Hand the item to the Lost &amp; Found office. Your photo and marks stay hidden from other students so nobody can fake a claim.'
-    : '<strong>Lost item:</strong> Give as many details as you can. Reclaim compares your report with every found item and notifies you about matches.';
+  $('report-form-banner').innerHTML = found ? t('bannerFound') : t('bannerLost');
 }
 
 function clearPhoto(target) {
@@ -706,54 +1302,63 @@ function claimPillClass(status) {
 
 function renderClaimsAndMatchesView() {
   if (!currentUser) return;
+  const isAr = currentLang === 'ar';
   $('claims-view-matches').innerHTML = allMatches.length
     ? allMatches.map(buildMatchCardHtml).join('')
-    : emptyState('No matches right now.');
+    : emptyState(isAr ? 'لا توجد مطابقات مقترحة حالياً.' : 'No matches right now.');
 
   const el = $('student-claims-container');
   const mine = currentUser.role === 'admin' ? allClaims : allClaims.filter((c) => c.claimant_id === currentUser.id);
   if (!mine.length) {
-    el.innerHTML = emptyState('You have not submitted any ownership claims yet.');
+    el.innerHTML = emptyState(isAr ? 'لم تقدم أي مطالبات ملكية بعد.' : 'You have not submitted any ownership claims yet.');
     return;
   }
 
   el.innerHTML = mine.map((c) => {
     const isMine = c.claimant_id === currentUser.id;
     let action = '';
+    const statusText = isAr ? (STATUS_MAP[c.status] || c.status) : c.status;
     if (c.status === 'More Proof Requested' && isMine) {
       action = `
         <div class="alert-box alert-warn" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div><strong>🔎 The administrator needs more proof:</strong> "${escapeHtml(c.admin_feedback)}"</div>
-          <button class="btn btn-warn btn-sm" data-action="more-proof" data-id="${c.id}">+ Provide proof</button>
+          <div><strong>🔎 ${isAr ? 'طلب المشرف إثباتات إضافية:' : 'The administrator needs more proof:'}</strong> "${escapeHtml(c.admin_feedback)}"</div>
+          <button class="btn btn-warn btn-sm" data-action="more-proof" data-id="${c.id}">${isAr ? '+ تقديم إثبات' : '+ Provide proof'}</button>
         </div>`;
     } else if (c.status === 'Approved') {
       action = `
         <div class="alert-box" style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <div>
-            <strong>🎉 Claim approved.</strong> ${escapeHtml(c.admin_feedback)}
-            ${c.receipt_confirmed ? '<br/><span style="color:#059669;font-weight:700;">✓ You confirmed receipt</span>' : ''}
+            <strong>🎉 ${isAr ? 'تمت الموافقة على المطالبة.' : 'Claim approved.'}</strong> ${escapeHtml(c.admin_feedback)}
+            ${c.receipt_confirmed ? `<br/><span style="color:#059669;font-weight:700;">✓ ${isAr ? 'أكدت استلام المقتنى' : 'You confirmed receipt'}</span>` : ''}
           </div>
-          ${!c.receipt_confirmed && isMine ? `<button class="btn btn-primary btn-sm" data-action="confirm-receipt" data-id="${c.id}">✍️ I received the item</button>` : ''}
+          ${!c.receipt_confirmed && isMine ? `<button class="btn btn-primary btn-sm" data-action="confirm-receipt" data-id="${c.id}">✍️ ${isAr ? 'استلمت المقتنى عيناً' : 'I received the item'}</button>` : ''}
         </div>`;
     } else if (c.status === 'Returned') {
-      action = `<div class="alert-box" style="margin-top:12px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;">✅ <strong>Returned — case resolved.</strong> ${escapeHtml(c.admin_feedback)}</div>`;
+      action = `<div class="alert-box" style="margin-top:12px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;">✅ <strong>${isAr ? 'تم التسليم — أُغلقت القضية بنجاح.' : 'Returned — case resolved.'}</strong> ${escapeHtml(c.admin_feedback)}</div>`;
     } else if (c.status === 'Rejected' || c.status === 'Hold Item') {
-      action = `<div class="alert-box alert-warn" style="margin-top:12px;"><strong>${escapeHtml(c.status)}:</strong> ${escapeHtml(c.admin_feedback)}</div>`;
+      action = `<div class="alert-box alert-warn" style="margin-top:12px;"><strong>${escapeHtml(statusText)}:</strong> ${escapeHtml(c.admin_feedback)}</div>`;
     }
+
+    const claimTitle = isAr ? `مطالبة #${c.id} • ${escapeHtml(c.found_title)}` : `Claim #${c.id} • ${escapeHtml(c.found_title)}`;
+    const claimantMeta = isAr
+      ? `بواسطة <strong>@${escapeHtml(c.claimant_username)}</strong> • ${escapeHtml(LOCATION_MAP[c.found_location] || c.found_location)} • ${escapeHtml(formatWhen(c.created_at))}`
+      : `By <strong>@${escapeHtml(c.claimant_username)}</strong> • ${escapeHtml(c.found_location)} • ${escapeHtml(formatWhen(c.created_at))}`;
 
     return `
       <div class="claim-card">
         <div class="claim-card-header">
           <div>
-            <strong>Claim #${c.id} • ${escapeHtml(c.found_title)}</strong>
-            <span style="font-size:12.5px;color:#64748b;margin-left:10px;">By <strong>@${escapeHtml(c.claimant_username)}</strong> • ${escapeHtml(c.found_location)} • ${escapeHtml(formatWhen(c.created_at))}</span>
+            <strong>${claimTitle}</strong>
+            <span style="font-size:12.5px;color:var(--text-light);margin-left:10px;margin-right:10px;">${claimantMeta}</span>
           </div>
-          <span class="claim-status-pill ${claimPillClass(c.status)}">${escapeHtml(c.status)}</span>
+          <span class="claim-status-pill ${claimPillClass(c.status)}">${escapeHtml(statusText)}</span>
         </div>
-        <div style="margin-top:12px;font-size:13.5px;color:#334155;">
-          <strong>Your proof:</strong> ${escapeHtml(c.proof_description)}
-          ${c.additional_proof_text ? `<div style="margin-top:6px;color:#0369a1;"><strong>Additional proof:</strong> ${escapeHtml(c.additional_proof_text)}</div>` : ''}
+        <div style="margin-top:12px;font-size:13.5px;color:var(--text-main);">
+          <strong>${isAr ? 'إثبات الملكية المقدم:' : 'Your proof:'}</strong> ${escapeHtml(c.proof_description)}
+          ${c.additional_proof_text ? `<div style="margin-top:6px;color:#0284c7;"><strong>${isAr ? 'الإثبات الإضافي:' : 'Additional proof:'}</strong> ${escapeHtml(c.additional_proof_text)}</div>` : ''}
         </div>
+        ${c.proof_photo_url ? `<div style="margin-top:10px;"><a href="${escapeHtml(c.proof_photo_url)}" target="_blank" class="btn btn-outline btn-sm">📎 ${isAr ? 'عرض صورة الإثبات المرفقة' : 'View proof photo'}</a></div>` : ''}
+        ${c.additional_photo_url ? `<div style="margin-top:6px;"><a href="${escapeHtml(c.additional_photo_url)}" target="_blank" class="btn btn-outline btn-sm">📎 ${isAr ? 'عرض الإثبات الإضافي المرفق' : 'View additional photo'}</a></div>` : ''}
         ${action}
       </div>`;
   }).join('');

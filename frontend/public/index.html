@@ -10,6 +10,11 @@
 
   <!-- ==================== SIGN IN / CREATE ACCOUNT ==================== -->
   <section id="login-screen" class="login-screen">
+    <div class="top-floating-controls">
+      <button id="login-theme-btn" class="ctrl-btn theme-toggle-btn" type="button" title="Toggle dark/light mode">🌙</button>
+      <button id="login-lang-btn" class="ctrl-btn lang-toggle-btn" type="button" title="تبديل اللغة / Switch language">🌐 العربية</button>
+    </div>
+
     <div class="login-container">
       <div class="login-hero">
         <div class="brand-badge">
@@ -115,6 +120,9 @@
       </div>
 
       <div class="nav-right">
+        <button id="nav-theme-btn" class="icon-btn theme-toggle-btn" type="button" title="Toggle dark/light mode">🌙</button>
+        <button id="nav-lang-btn" class="btn btn-outline btn-sm lang-toggle-btn" type="button" title="تبديل اللغة / Switch language">🌐 العربية</button>
+
         <button class="icon-btn" onclick="toggleNotificationsDrawer()" title="Notifications">
           🔔
           <span id="notif-unread-badge" class="notif-badge hidden">0</span>
