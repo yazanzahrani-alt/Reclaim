@@ -16,3 +16,7 @@ Thumbs.db
 .vscode/
 .idea/
 
+
+# Local database (created automatically on first start)
+backend/reclaim.db
+backend/*.db

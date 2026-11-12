@@ -1,7 +1,7 @@
 {
   "name": "reclaim-frontend",
-  "version": "1.0.0",
-  "description": "Reclaim - Campus Lost and Found System Frontend Web Application",
+  "version": "2.0.0",
+  "description": "Reclaim - Campus Lost and Found System frontend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

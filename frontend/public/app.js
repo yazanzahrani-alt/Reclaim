@@ -1,192 +1,345 @@
-// Automatically resolve API base:
-// When running locally on port 3000 with backend on 5000, target port 5000.
-// When deployed on Vercel or under 'vercel dev' (with top-level rewrites /api/*), use relative '/api'.
-const API_BASE = (window.location.hostname === 'localhost' && window.location.port === '3000')
-  ? 'http://localhost:5000/api'
+'use strict';
+
+// ============================================================================
+// Reclaim — frontend
+// All permissions are enforced by the server; this file only renders what the
+// server allows the signed-in user to see.
+// ============================================================================
+
+// Local dev: frontend on :3000 talks to the backend on :5000. When deployed, /api is same-origin.
+const API_BASE = window.location.port === '3000'
+  ? `${window.location.protocol}//${window.location.hostname}:5000/api`
   : '/api';
 
-// Application State
+const TOKEN_KEY = 'reclaim_token';
+
+let token = localStorage.getItem(TOKEN_KEY) || '';
 let currentUser = null;
-let appHealth = null;
+let meta = { categories: [], colors: [], locations: [] };
+let stats = null;
+let overview = null;
 let allReports = [];
 let allMatches = [];
 let allClaims = [];
 let userNotifications = [];
-let presetImages = {};
+let authMode = 'signin'; // 'signin' | 'register'
 
-// Current uploaded/selected photo state
-let reportPhotoDataUrl = '';
-let reportPhotoSizeKb = 192.4;
-let claimPhotoDataUrl = '';
+// Photo state (data URLs). `thumb` is a tiny preview used for privacy blur.
+const photos = {
+  report: { url: '', thumb: '', kb: 0 },
+  claim: { url: '', thumb: '', kb: 0 },
+  more: { url: '', thumb: '', kb: 0 }
+};
 
-// Initialize App
-window.addEventListener('DOMContentLoaded', async () => {
-  const savedUser = localStorage.getItem('reclaim_user');
-  if (savedUser) {
-    try {
-      currentUser = JSON.parse(savedUser);
-    } catch {
-      currentUser = null;
-    }
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function showToast(message, kind = 'info') {
+  const container = $('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast${kind === 'error' ? ' toast-error' : ''}`;
+  toast.textContent = message; // textContent: never interprets HTML
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4800);
+}
+
+function formatWhen(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value ?? '');
+  return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+async function api(path, { method = 'GET', body, auth = true } = {}) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(auth && token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+  } catch {
+    throw new Error('Cannot reach the server. Make sure the backend is running (npm run dev:backend).');
   }
 
-  await fetchHealthAndPresets();
+  let data = {};
+  try { data = await res.json(); } catch { /* empty body */ }
 
-  if (currentUser) {
-    enterAppShell();
+  if (res.status === 401 && auth && token) {
+    forceSignedOut('Your session has expired. Please sign in again.');
+    throw new Error('Your session has expired. Please sign in again.');
   }
-
-  // Bind Login Form
-  document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
-
-  // Bind Create Report Form
-  document.getElementById('create-report-form').addEventListener('submit', handleCreateReportSubmit);
-
-  // Bind Submit Claim Form
-  document.getElementById('submit-claim-form').addEventListener('submit', handleSubmitClaim);
-
-  // Bind More Proof Form
-  document.getElementById('more-proof-form').addEventListener('submit', handleMoreProofSubmit);
-});
-
-async function apiRequest(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  });
-  const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Request failed');
+    const err = new Error(data.error || 'Request failed.');
+    err.code = data.code;
+    err.status = res.status;
+    err.details = data;
+    throw err;
   }
   return data;
 }
 
-function showToast(message) {
-  const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.remove();
-  }, 4200);
+// ---------------------------------------------------------------------------
+// Start-up
+// ---------------------------------------------------------------------------
+window.addEventListener('DOMContentLoaded', async () => {
+  $('login-form').addEventListener('submit', handleAuthSubmit);
+  $('login-back').addEventListener('click', () => setAuthMode('signin'));
+  $('toggle-password').addEventListener('click', togglePasswordVisibility);
+  ['login-password', 'login-confirm'].forEach((id) => $(id).addEventListener('input', updatePasswordRules));
+  $('login-username').addEventListener('input', () => {
+    if (authMode === 'register') return;
+    hide($('login-error'));
+  });
+  $('create-report-form').addEventListener('submit', handleCreateReportSubmit);
+  $('submit-claim-form').addEventListener('submit', handleSubmitClaim);
+  $('more-proof-form').addEventListener('submit', handleMoreProofSubmit);
+  document.addEventListener('click', handleDelegatedClick);
+
+  try {
+    meta = await api('/meta', { auth: false });
+    fillSelect('filter-category', meta.categories, 'All categories');
+    fillSelect('filter-location', meta.locations, 'All buildings');
+    fillSelect('filter-color', meta.colors, 'All colors');
+    fillSelect('rep-category', meta.categories);
+    fillSelect('rep-color', meta.colors);
+    fillSelect('rep-location', meta.locations);
+  } catch (err) {
+    showLoginError(err.message);
+  }
+
+  resetReportForm();
+
+  if (token) {
+    try {
+      const data = await api('/auth/me');
+      currentUser = data.user;
+      await enterAppShell();
+    } catch {
+      forceSignedOut();
+    }
+  }
+
+  // Keep data fresh without disturbing anything the user is typing.
+  setInterval(() => {
+    if (!currentUser || document.hidden) return;
+    const el = document.activeElement;
+    if (el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+    refreshAllData();
+  }, 30000);
+});
+
+function fillSelect(id, values, allLabel) {
+  const select = $(id);
+  const options = allLabel ? [`<option value="ALL">${escapeHtml(allLabel)}</option>`] : [];
+  values.forEach((v) => options.push(`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`));
+  select.innerHTML = options.join('');
 }
 
-async function fetchHealthAndPresets() {
-  try {
-    appHealth = await apiRequest('/health');
-    presetImages = appHealth.presets || {};
-    if (!reportPhotoDataUrl && presetImages.charger_lost) {
-      reportPhotoDataUrl = presetImages.charger_lost;
-      const preview = document.getElementById('rep-photo-preview');
-      if (preview) preview.src = reportPhotoDataUrl;
-    }
-    if (!claimPhotoDataUrl && presetImages.charger_proof) {
-      claimPhotoDataUrl = presetImages.charger_proof;
-      const cPreview = document.getElementById('claim-photo-preview');
-      if (cPreview) cPreview.src = claimPhotoDataUrl;
-    }
-    renderDevOpsConsole();
-  } catch (err) {
-    console.error('Could not reach backend API at localhost:5000:', err);
+const hide = (el) => el.classList.add('hidden');
+const show = (el) => el.classList.remove('hidden');
+
+// ---------------------------------------------------------------------------
+// Sign in / create account
+// ---------------------------------------------------------------------------
+function showLoginError(message) {
+  const box = $('login-error');
+  box.textContent = message;
+  show(box);
+}
+
+function togglePasswordVisibility() {
+  const input = $('login-password');
+  const confirm = $('login-confirm');
+  const reveal = input.type === 'password';
+  input.type = reveal ? 'text' : 'password';
+  confirm.type = reveal ? 'text' : 'password';
+  $('toggle-password').textContent = reveal ? 'Hide' : 'Show';
+}
+
+function setAuthMode(mode, notice = '') {
+  authMode = mode;
+  const register = mode === 'register';
+  $('register-extra').classList.toggle('hidden', !register);
+  $('login-back').classList.toggle('hidden', !register);
+  $('login-title').textContent = register ? 'Create your account' : 'Sign in to Reclaim';
+  $('login-subtitle').textContent = register
+    ? 'Choose a password and confirm it. Your account is created the moment you submit.'
+    : "Enter your username and password. New here? Type a new username and we'll help you create the account.";
+  $('login-submit').textContent = register ? 'Create account' : 'Sign in';
+  $('login-password').autocomplete = register ? 'new-password' : 'current-password';
+  $('login-username').readOnly = register;
+  hide($('login-error'));
+  const noticeBox = $('login-notice');
+  if (notice) { noticeBox.textContent = notice; show(noticeBox); } else { hide(noticeBox); }
+  if (register) {
+    $('login-confirm').value = '';
+    updatePasswordRules();
+    $('login-password').focus();
+  } else {
+    $('login-username').readOnly = false;
+    $('login-password').value = '';
+    $('login-confirm').value = '';
+    $('login-username').focus();
   }
 }
 
-// ==================== 1. UNIFIED LOGIN (AUTO-CREATE & REMEMBER) ====================
-function quickFillLogin(username, password) {
-  document.getElementById('login-username').value = username;
-  document.getElementById('login-password').value = password;
-  document.getElementById('login-form').requestSubmit();
+function passwordChecks(password, confirm) {
+  return {
+    length: password.length >= 8,
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9\s]/.test(password),
+    match: password.length > 0 && password === confirm
+  };
 }
 
-async function handleLoginSubmit(e) {
+function updatePasswordRules() {
+  const checks = passwordChecks($('login-password').value, $('login-confirm').value);
+  document.querySelectorAll('#pw-rules .pw-rule').forEach((li) => {
+    const ok = checks[li.dataset.rule];
+    li.classList.toggle('ok', ok);
+    li.querySelector('.pw-rule-mark').textContent = ok ? '✓' : '○';
+  });
+  return checks;
+}
+
+async function handleAuthSubmit(e) {
   e.preventDefault();
-  const errBox = document.getElementById('login-error');
-  errBox.classList.add('hidden');
+  hide($('login-error'));
 
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value.trim();
+  const username = $('login-username').value.trim();
+  const password = $('login-password').value;
+  const submit = $('login-submit');
 
+  if (!username) return showLoginError('Enter a username.');
+  if (!password) return showLoginError('Enter a password.');
+
+  submit.disabled = true;
   try {
-    const data = await apiRequest('/login', {
-      method: 'POST',
-      body: JSON.stringify({ username, password })
-    });
-
-    currentUser = data.user;
-    localStorage.setItem('reclaim_user', JSON.stringify(currentUser));
-
-    if (data.isNewAccount) {
-      showToast(`✨ New account <strong>@${currentUser.username}</strong> auto-created &amp; saved in SQLite!`);
+    let data;
+    if (authMode === 'register') {
+      const checks = updatePasswordRules();
+      if (!checks.length || !checks.number || !checks.special) {
+        throw new Error('Your password must have at least 8 characters, one number and one special character.');
+      }
+      if (!checks.match) throw new Error('The two passwords do not match.');
+      data = await api('/auth/register', {
+        method: 'POST',
+        auth: false,
+        body: { username, password, confirmPassword: $('login-confirm').value }
+      });
     } else {
-      showToast(`👋 Welcome back, <strong>@${currentUser.username}</strong> (${currentUser.role.toUpperCase()})`);
+      data = await api('/auth/login', { method: 'POST', auth: false, body: { username, password } });
     }
 
+    token = data.token;
+    localStorage.setItem(TOKEN_KEY, token);
+    currentUser = data.user;
+    $('login-password').value = '';
+    $('login-confirm').value = '';
+    setAuthMode('signin');
+    showToast(data.isNewAccount ? `Account created. Welcome, ${currentUser.username}!` : `Welcome back, ${currentUser.username}.`);
     await enterAppShell();
   } catch (err) {
-    errBox.textContent = err.message;
-    errBox.classList.remove('hidden');
+    if (err.code === 'USER_NOT_FOUND' && authMode === 'signin') {
+      setAuthMode('register', `"${username}" is a new username. Confirm your password below to create the account.`);
+      return;
+    }
+    showLoginError(err.message);
+  } finally {
+    submit.disabled = false;
   }
 }
 
-function handleLogout() {
+function resetAppState() {
   currentUser = null;
-  localStorage.removeItem('reclaim_user');
-  document.getElementById('app-shell').classList.add('hidden');
-  document.getElementById('login-screen').classList.remove('hidden');
-  document.getElementById('login-password').value = '';
-  showToast('Signed out of Reclaim.');
+  stats = null;
+  overview = null;
+  allReports = [];
+  allMatches = [];
+  allClaims = [];
+  userNotifications = [];
+}
+
+function forceSignedOut(message = '') {
+  token = '';
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('reclaim_user'); // legacy key from the old prototype
+  resetAppState();
+  hide($('app-shell'));
+  hide($('devops-floating-btn'));
+  hide($('devops-overlay'));
+  show($('login-screen'));
+  setAuthMode('signin');
+  if (message) showLoginError(message);
+}
+
+async function handleLogout() {
+  try { await api('/auth/logout', { method: 'POST', body: {} }); } catch { /* already signed out */ }
+  forceSignedOut();
+  showToast('You have been signed out.');
 }
 
 async function enterAppShell() {
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
-
+  hide($('login-screen'));
+  show($('app-shell'));
   updateUserHeader();
   await refreshAllData();
-  if (currentUser.role === 'admin') {
+
+  const isAdmin = currentUser.role === 'admin';
+  $('devops-floating-btn').classList.toggle('hidden', !isAdmin);
+  if (isAdmin) {
     switchView('admin');
+    toggleDevOpsModal(true); // administrators land directly in the DevOps console
   } else {
+    hide($('devops-overlay'));
     switchView('home');
   }
 }
 
 function updateUserHeader() {
-  if (!currentUser) return;
-  document.getElementById('header-user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
-  document.getElementById('header-username').textContent = `@${currentUser.username}`;
-  document.getElementById('header-user-role').textContent =
-    currentUser.role === 'admin' ? '🛡️ Administrator' : '🎓 Student';
-
-  const adminTab = document.getElementById('nav-admin-tab');
-  if (currentUser.role === 'admin') {
-    adminTab.classList.remove('hidden');
-  } else {
-    adminTab.classList.add('hidden');
-  }
-
-  document.getElementById('welcome-headline').textContent = `Welcome back, ${currentUser.display_name}`;
+  const isAdmin = currentUser.role === 'admin';
+  $('header-user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
+  $('header-username').textContent = `@${currentUser.username}`;
+  $('header-user-role').textContent = isAdmin ? '🛡️ Administrator' : '🎓 Student';
+  $('nav-admin-tab').classList.toggle('hidden', !isAdmin);
+  $('welcome-headline').textContent = `Welcome, ${currentUser.username}`;
 }
 
-// ==================== 2. REFRESH ALL DATA FROM SQLITE BACKEND ====================
+// ---------------------------------------------------------------------------
+// Data
+// ---------------------------------------------------------------------------
 async function refreshAllData() {
   if (!currentUser) return;
-
   try {
-    const [healthRes, reportsRes, matchesRes, claimsRes, notifsRes] = await Promise.all([
-      apiRequest('/health'),
-      apiRequest(`/reports?viewerRole=${encodeURIComponent(currentUser.role)}&viewerUsername=${encodeURIComponent(currentUser.username)}`),
-      apiRequest(`/matches?username=${encodeURIComponent(currentUser.username)}&role=${encodeURIComponent(currentUser.role)}`),
-      apiRequest('/claims'),
-      apiRequest(`/notifications?username=${encodeURIComponent(currentUser.username)}`)
+    const isAdmin = currentUser.role === 'admin';
+    const [statsRes, reportsRes, matchesRes, claimsRes, notifsRes, overviewRes] = await Promise.all([
+      api('/stats'),
+      api('/reports'),
+      api('/matches'),
+      api('/claims'),
+      api('/notifications'),
+      isAdmin ? api('/admin/overview') : Promise.resolve(null)
     ]);
-
-    appHealth = healthRes;
-    presetImages = healthRes.presets || presetImages;
-    allReports = reportsRes.reports || [];
-    allMatches = matchesRes.matches || [];
-    allClaims = claimsRes.claims || [];
-    userNotifications = notifsRes.notifications || [];
+    stats = statsRes;
+    allReports = reportsRes.reports;
+    allMatches = matchesRes.matches;
+    allClaims = claimsRes.claims;
+    userNotifications = notifsRes.notifications;
+    overview = overviewRes;
 
     renderStatsAndBadges();
     renderHomeView();
@@ -196,54 +349,40 @@ async function refreshAllData() {
     renderNotificationsDrawer();
     renderDevOpsConsole();
   } catch (err) {
-    console.error('Error refreshing data:', err);
+    if (currentUser) showToast(err.message, 'error');
   }
 }
 
 function renderStatsAndBadges() {
-  if (!appHealth) return;
-  document.getElementById('stat-total-reports').textContent = appHealth.counts.reports;
-  document.getElementById('stat-total-matches').textContent = appHealth.counts.matches;
-  document.getElementById('stat-match-speed').textContent = `${appHealth.nfr.lastMatchLatencyMs} ms`;
-  document.getElementById('stat-resolved-cases').textContent = appHealth.counts.resolvedCases;
+  if (!stats) return;
+  $('stat-total-reports').textContent = stats.counts.reports;
+  $('stat-total-matches').textContent = stats.counts.matches;
+  $('stat-match-speed').textContent = stats.lastMatchLatencyMs === null ? '—' : `${stats.lastMatchLatencyMs} ms`;
+  $('stat-resolved-cases').textContent = stats.counts.resolved;
 
-  // Unread notifications badge
-  const unreadCount = userNotifications.filter((n) => !n.is_read).length;
-  const notifBadge = document.getElementById('notif-unread-badge');
-  if (unreadCount > 0) {
-    notifBadge.textContent = unreadCount;
-    notifBadge.classList.remove('hidden');
-  } else {
-    notifBadge.classList.add('hidden');
-  }
+  const unread = userNotifications.filter((n) => !n.is_read).length;
+  $('notif-unread-badge').textContent = unread;
+  $('notif-unread-badge').classList.toggle('hidden', unread === 0);
 
-  // Pending claims / matches badge
-  const pendingClaimsCount = appHealth.counts.pendingClaims;
-  const adminBadge = document.getElementById('nav-admin-badge');
-  if (adminBadge) adminBadge.textContent = pendingClaimsCount + appHealth.counts.suspiciousReports;
+  const adminTotal = stats.counts.pendingClaims + stats.counts.flagged;
+  $('nav-admin-badge').textContent = adminTotal;
+  $('devops-fab-badge').textContent = adminTotal;
+  $('devops-fab-badge').classList.toggle('hidden', adminTotal === 0);
 
-  const fabBadge = document.getElementById('devops-fab-badge');
-  if (fabBadge) fabBadge.textContent = pendingClaimsCount + appHealth.counts.suspiciousReports;
-
-  const myClaimsCount = allClaims.filter((c) => c.claimant_username.toLowerCase() === currentUser.username.toLowerCase()).length;
-  const navClaimsBadge = document.getElementById('nav-claims-badge');
-  if (myClaimsCount + allMatches.length > 0) {
-    navClaimsBadge.textContent = myClaimsCount + allMatches.length;
-    navClaimsBadge.classList.remove('hidden');
-  } else {
-    navClaimsBadge.classList.add('hidden');
-  }
+  const mine = allClaims.filter((c) => c.claimant_id === currentUser.id).length;
+  const navClaims = mine + (currentUser.role === 'admin' ? 0 : allMatches.length);
+  $('nav-claims-badge').textContent = navClaims;
+  $('nav-claims-badge').classList.toggle('hidden', navClaims === 0);
 }
 
-// ==================== 3. VIEW NAVIGATION ====================
-function switchView(viewName) {
-  document.querySelectorAll('.view-section').forEach((el) => el.classList.add('hidden'));
-  const target = document.getElementById(`view-${viewName}`);
-  if (target) target.classList.remove('hidden');
-
-  document.querySelectorAll('.nav-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.view === viewName);
-  });
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+function switchView(name) {
+  document.querySelectorAll('.view-section').forEach((el) => hide(el));
+  const target = $(`view-${name}`);
+  if (target) show(target);
+  document.querySelectorAll('.nav-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.view === name));
 }
 
 function openReportForm(type) {
@@ -251,294 +390,224 @@ function openReportForm(type) {
   setReportFormType(type);
 }
 
-// ==================== 4. RENDER MATCHES & REPORTS ====================
-function buildMatchCardHtml(match) {
-  const blurClass = match.found_should_blur ? 'privacy-blurred' : '';
-  const tagsHtml = (match.matched_attributes || [])
-    .map((t) => `<span class="match-attr-tag">✓ ${escapeHtml(t)}</span>`)
-    .join('');
+// ---------------------------------------------------------------------------
+// Rendering: matches & reports
+// ---------------------------------------------------------------------------
+function emptyState(text) {
+  return `<div class="alert-box">${escapeHtml(text)}</div>`;
+}
+
+function buildMatchCardHtml(m) {
+  const tags = (m.matched_attributes || []).map((t) => `<span class="match-attr-tag">✓ ${escapeHtml(t)}</span>`).join('');
+  const closed = ['Returned', 'Resolved'].includes(m.found_status);
+  const action = closed
+    ? '<span class="btn btn-sm" style="background:#d1fae5;color:#047857;">✅ Returned</span>'
+    : `<button class="btn btn-primary btn-sm" data-action="claim" data-id="${m.found_report_id}" data-lost="${m.lost_report_id}">🛡️ Submit ownership claim</button>`;
 
   return `
     <div class="match-card">
       <div class="match-header">
-        <span class="match-score-pill">⚡ ${match.score}% Automated Match</span>
-        <span class="match-speed-tag">Matched in ${match.match_time_ms} ms (&lt;3s NFR)</span>
+        <span class="match-score-pill">⚡ ${m.score}% match</span>
+        <span class="match-speed-tag">Matched in ${m.match_time_ms} ms</span>
       </div>
-
       <div class="match-compare-row">
         <div class="match-side">
-          <span class="match-side-title" style="color:#dc2626;">📢 Lost Report (#${match.lost_report_id})</span>
-          <strong>${escapeHtml(match.lost_title)}</strong>
-          <div style="font-size:12px;color:#475569;margin-top:4px;">
-            📍 ${escapeHtml(match.lost_location)} • ${escapeHtml(match.lost_color)} • ${escapeHtml(match.lost_brand || 'N/A')}
-          </div>
+          <span class="match-side-title" style="color:#dc2626;">📢 Lost report #${m.lost_report_id}</span>
+          <strong>${escapeHtml(m.lost_title)}</strong>
+          <div style="font-size:12px;color:#475569;margin-top:4px;">📍 ${escapeHtml(m.lost_location)} • ${escapeHtml(m.lost_color)} • ${escapeHtml(m.lost_brand || 'No brand')}</div>
         </div>
-
         <div class="match-side">
-          <span class="match-side-title" style="color:#059669;">📦 Found Report (#${match.found_report_id})</span>
-          <strong>${escapeHtml(match.found_title)}</strong>
-          <div style="font-size:12px;color:#475569;margin-top:4px;">
-            📍 ${escapeHtml(match.found_location)} • ${escapeHtml(match.found_color)}
-            ${match.found_should_blur ? '<span style="color:#0284c7;font-weight:700;">(Photo Blurred)</span>' : ''}
-          </div>
+          <span class="match-side-title" style="color:#059669;">📦 Found report #${m.found_report_id}</span>
+          <strong>${escapeHtml(m.found_title)}</strong>
+          <div style="font-size:12px;color:#475569;margin-top:4px;">📍 ${escapeHtml(m.found_location)} • ${escapeHtml(m.found_color)}</div>
         </div>
       </div>
-
-      <div class="match-tags-row">${tagsHtml}</div>
-
+      <div class="match-tags-row">${tags}</div>
       <div class="match-footer">
-        <span style="font-size:12px;color:#64748b;">
-          Status: <strong>${escapeHtml(match.found_status)}</strong>
-        </span>
-        <div style="display:flex;gap:8px;">
-          ${
-            match.found_status === 'Returned' || match.found_status === 'Resolved'
-              ? `<span class="btn btn-sm" style="background:#d1fae5;color:#047857;">✅ Item Returned &amp; Resolved</span>`
-              : `<button class="btn btn-primary btn-sm" onclick="openClaimModal(${match.found_report_id}, ${match.lost_report_id}, '${escapeQuotes(match.found_title)}')">
-                   🛡️ Submit Ownership Claim
-                 </button>`
-          }
-        </div>
+        <span style="font-size:12px;color:#64748b;">Status: <strong>${escapeHtml(m.found_status)}</strong></span>
+        <div style="display:flex;gap:8px;">${action}</div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-function buildReportCardHtml(report) {
-  const isBlurred = report.should_blur_photo;
-  const suspiciousBanner = report.is_suspicious
-    ? `<div class="alert-box alert-warn" style="margin-top:10px;font-size:11.5px;">
-         🚨 <strong>Flagged Suspicious:</strong> ${escapeHtml(report.suspicious_reason || 'Under Admin Review')}
+function buildReportCardHtml(r) {
+  const photo = r.photo_url
+    ? `<img src="${escapeHtml(r.photo_url)}" alt="" />`
+    : '<div class="no-photo">No photo</div>';
+  const overlay = r.should_blur_photo
+    ? `<div class="privacy-blur-overlay">
+         <span class="privacy-blur-pill">🔒 Photo hidden for privacy</span>
+         <span class="privacy-blur-sub">Only the finder and administrators can see this photo, to prevent false claims.</span>
        </div>`
     : '';
+  const banner = r.is_suspicious
+    ? `<div class="alert-box alert-warn" style="margin-top:10px;font-size:11.5px;">🚨 <strong>Under review:</strong> ${escapeHtml(r.suspicious_reason || 'An administrator is reviewing this report.')}</div>`
+    : '';
+  const closed = ['Returned', 'Resolved'].includes(r.status);
+  const canClaim = r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
+
+  const buttons = [];
+  if (canClaim) buttons.push(`<button class="btn btn-primary btn-sm" data-action="claim" data-id="${r.id}">Submit claim</button>`);
+  if (!r.is_mine && !r.is_suspicious) buttons.push(`<button class="btn btn-outline btn-sm" title="Flag as suspicious or duplicate" data-action="flag" data-id="${r.id}">🚩</button>`);
+  if (r.is_mine && !closed) buttons.push(`<button class="btn btn-outline btn-sm" title="Delete my report" data-action="delete-report" data-id="${r.id}">🗑️</button>`);
 
   return `
-    <div class="report-card ${report.is_suspicious ? 'suspicious-card' : ''}">
-      <div class="report-img-wrap ${isBlurred ? 'privacy-blurred' : ''}">
+    <div class="report-card ${r.is_suspicious ? 'suspicious-card' : ''}">
+      <div class="report-img-wrap ${r.should_blur_photo ? 'privacy-blurred' : ''}">
         <div class="report-badges-top">
-          <span class="type-badge ${report.type}">${report.type === 'LOST' ? '📢 LOST ITEM' : '📦 FOUND ITEM'}</span>
-          <span class="status-badge">${escapeHtml(report.status)}</span>
+          <span class="type-badge ${r.type}">${r.type === 'LOST' ? '📢 LOST' : '📦 FOUND'}</span>
+          <span class="status-badge">${escapeHtml(r.status)}</span>
         </div>
-        <img src="${report.photo_url}" alt="${escapeHtml(report.title)}" />
-        ${
-          isBlurred
-            ? `<div class="privacy-blur-overlay">
-                 <span class="privacy-blur-pill">🔒 Photo Blurred for Privacy</span>
-                 <span class="privacy-blur-sub">Prevents fraudulent claims. Only Admin &amp; verified owner can view unblurred photo.</span>
-               </div>`
-            : ''
-        }
+        ${photo}
+        ${overlay}
       </div>
-
       <div class="report-body">
         <div>
-          <h4 class="report-title">${escapeHtml(report.title)}</h4>
+          <h4 class="report-title">${escapeHtml(r.title)}</h4>
           <div class="report-meta-tags">
-            <span class="meta-pill">📍 ${escapeHtml(report.location)}</span>
-            <span class="meta-pill">🏷️ ${escapeHtml(report.category)}</span>
-            <span class="meta-pill">🎨 ${escapeHtml(report.color)}</span>
-            ${report.brand ? `<span class="meta-pill">✨ ${escapeHtml(report.brand)}</span>` : ''}
+            <span class="meta-pill">📍 ${escapeHtml(r.location)}</span>
+            <span class="meta-pill">🏷️ ${escapeHtml(r.category)}</span>
+            <span class="meta-pill">🎨 ${escapeHtml(r.color)}</span>
+            ${r.brand ? `<span class="meta-pill">✨ ${escapeHtml(r.brand)}</span>` : ''}
           </div>
-          <p class="report-desc">${escapeHtml(report.description)}</p>
-          <div class="report-marks-box">
-            <strong>Distinguishing Marks:</strong> ${escapeHtml(report.distinguishing_marks_display)}
-          </div>
-          ${suspiciousBanner}
+          <p class="report-desc">${escapeHtml(r.description)}</p>
+          <div class="report-marks-box"><strong>Distinguishing marks:</strong> ${escapeHtml(r.distinguishing_marks_display)}</div>
+          ${banner}
         </div>
-
         <div class="report-footer">
-          <span class="reporter-privacy-tag">
-            👤 ${escapeHtml(report.reporter_label)} • ${escapeHtml(report.date_lost_found)}
-          </span>
-          <div style="display:flex;gap:6px;">
-            ${
-              report.type === 'FOUND' && report.status !== 'Returned' && report.status !== 'Resolved'
-                ? `<button class="btn btn-primary btn-sm" onclick="openClaimModal(${report.id}, null, '${escapeQuotes(report.title)}')">
-                     Submit Claim
-                   </button>`
-                : ''
-            }
-            ${
-              !report.is_suspicious
-                ? `<button class="btn btn-outline btn-sm" title="Flag as Suspicious / Duplicate (BPMN Fig. 4)" onclick="flagReportSuspicious(${report.id})">
-                     🚩
-                   </button>`
-                : ''
-            }
-          </div>
+          <span class="reporter-privacy-tag">👤 ${escapeHtml(r.reporter_label)} • ${escapeHtml(formatWhen(r.date_lost_found))}</span>
+          <div style="display:flex;gap:6px;">${buttons.join('')}</div>
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 function renderHomeView() {
-  const matchesContainer = document.getElementById('home-matches-container');
-  if (allMatches.length === 0) {
-    matchesContainer.innerHTML = `<div class="alert-box">No automated matches yet. Submit a Lost &amp; Found report pair to see the &lt;3s matching engine in action!</div>`;
-  } else {
-    matchesContainer.innerHTML = allMatches.slice(0, 4).map(buildMatchCardHtml).join('');
-  }
+  const isAdmin = currentUser.role === 'admin';
+  $('home-matches-container').innerHTML = allMatches.length
+    ? allMatches.slice(0, 4).map(buildMatchCardHtml).join('')
+    : emptyState(isAdmin
+      ? 'No matches yet. They appear automatically when a lost and a found report look alike.'
+      : 'No matches yet. If you report a lost item, any matching found item will show up here.');
 
-  const reportsContainer = document.getElementById('home-reports-container');
-  const activeReports = allReports.filter((r) => !r.is_suspicious || currentUser.role === 'admin');
-  reportsContainer.innerHTML = activeReports.slice(0, 6).map(buildReportCardHtml).join('');
+  const visible = allReports.filter((r) => !r.is_suspicious || r.is_mine || isAdmin);
+  $('home-reports-container').innerHTML = visible.length
+    ? visible.slice(0, 6).map(buildReportCardHtml).join('')
+    : emptyState('No reports yet. Be the first — report a lost or found item.');
 }
 
-// ==================== 5. SEARCH & FILTER (Use Case 3 / BPMN Fig. 3) ====================
 function applySearchFilters() {
-  const q = (document.getElementById('filter-q')?.value || '').trim().toLowerCase();
-  const type = document.getElementById('filter-type')?.value || 'ALL';
-  const category = document.getElementById('filter-category')?.value || 'ALL';
-  const location = document.getElementById('filter-location')?.value || 'ALL';
-  const color = document.getElementById('filter-color')?.value || 'ALL';
+  if (!currentUser) return;
+  const q = ($('filter-q').value || '').trim().toLowerCase();
+  const type = $('filter-type').value;
+  const category = $('filter-category').value;
+  const location = $('filter-location').value;
+  const color = $('filter-color').value;
+  const isAdmin = currentUser.role === 'admin';
 
-  let filtered = allReports.filter((r) => !r.is_suspicious || currentUser?.role === 'admin');
-
-  if (type !== 'ALL') filtered = filtered.filter((r) => r.type === type);
-  if (category !== 'ALL') filtered = filtered.filter((r) => r.category === category);
-  if (location !== 'ALL') filtered = filtered.filter((r) => r.location === location);
-  if (color !== 'ALL') filtered = filtered.filter((r) => r.color.toLowerCase() === color.toLowerCase());
+  let list = allReports.filter((r) => !r.is_suspicious || r.is_mine || isAdmin);
+  if (type !== 'ALL') list = list.filter((r) => r.type === type);
+  if (category !== 'ALL') list = list.filter((r) => r.category === category);
+  if (location !== 'ALL') list = list.filter((r) => r.location === location);
+  if (color !== 'ALL') list = list.filter((r) => r.color === color);
   if (q) {
-    filtered = filtered.filter(
-      (r) =>
-        r.title.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q) ||
-        (r.brand || '').toLowerCase().includes(q) ||
-        r.location.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q)
-    );
+    list = list.filter((r) => [r.title, r.description, r.brand, r.location, r.category].some((f) => String(f || '').toLowerCase().includes(q)));
   }
 
-  const container = document.getElementById('browse-reports-container');
-  if (filtered.length === 0) {
-    container.innerHTML = `<div class="alert-box">No campus items matched your filter criteria. Try resetting the filters.</div>`;
-  } else {
-    container.innerHTML = filtered.map(buildReportCardHtml).join('');
-  }
+  $('browse-reports-container').innerHTML = list.length
+    ? list.map(buildReportCardHtml).join('')
+    : emptyState(allReports.length ? 'No items match your filters.' : 'No reports yet.');
 }
 
 function resetSearchFilters() {
-  document.getElementById('filter-q').value = '';
-  document.getElementById('filter-type').value = 'ALL';
-  document.getElementById('filter-category').value = 'ALL';
-  document.getElementById('filter-location').value = 'ALL';
-  document.getElementById('filter-color').value = 'ALL';
+  $('filter-q').value = '';
+  ['filter-type', 'filter-category', 'filter-location', 'filter-color'].forEach((id) => { $(id).value = 'ALL'; });
   applySearchFilters();
 }
 
-// ==================== 6. REPORT LOST OR FOUND ITEM & NFR IMAGE COMPRESSION ====================
+// ---------------------------------------------------------------------------
+// Reporting an item
+// ---------------------------------------------------------------------------
+function nowForInput() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function resetReportForm() {
+  $('create-report-form').reset();
+  $('rep-date').value = nowForInput();
+  $('rep-date').max = nowForInput();
+  clearPhoto('report');
+  setReportFormType($('report-type-input').value || 'LOST');
+}
+
 function setReportFormType(type) {
-  document.getElementById('report-type-input').value = type;
-  const lostBtn = document.getElementById('tab-btn-lost');
-  const foundBtn = document.getElementById('tab-btn-found');
-  const banner = document.getElementById('report-form-banner');
-  const handoverBox = document.getElementById('found-handover-box');
-
-  if (type === 'LOST') {
-    lostBtn.className = 'type-switch-btn active-lost';
-    foundBtn.className = 'type-switch-btn';
-    banner.innerHTML = `<strong>Lost Item Report (Use Case 3):</strong> Enter your lost item details and an old photo if available. The automated matching engine will scan found items in &lt; 3 seconds.`;
-    handoverBox.classList.add('hidden');
-    selectPresetPhoto('charger_lost', 'report');
-  } else {
-    lostBtn.className = 'type-switch-btn';
-    foundBtn.className = 'type-switch-btn active-found';
-    banner.innerHTML = `<strong>Found Item Report (Use Case 2 / BPMN Fig. 2):</strong> Upload photo evidence and hand over the physical item to the Lost &amp; Found Office. Note: Your photo will be blurred for students to prevent fake claims!`;
-    handoverBox.classList.remove('hidden');
-    selectPresetPhoto('charger_found', 'report');
-  }
+  $('report-type-input').value = type;
+  const found = type === 'FOUND';
+  $('tab-btn-lost').className = `type-switch-btn${found ? '' : ' active-lost'}`;
+  $('tab-btn-found').className = `type-switch-btn${found ? ' active-found' : ''}`;
+  $('found-handover-box').classList.toggle('hidden', !found);
+  $('report-form-banner').innerHTML = found
+    ? '<strong>Found item:</strong> Hand the item to the Lost &amp; Found office. Your photo and marks stay hidden from other students so nobody can fake a claim.'
+    : '<strong>Lost item:</strong> Give as many details as you can. Reclaim compares your report with every found item and notifies you about matches.';
 }
 
-function autofillAhmedLostCharger() {
-  setReportFormType('LOST');
-  document.getElementById('rep-title').value = 'Black Laptop Charger (65W USB-C)';
-  document.getElementById('rep-category').value = 'Electronics';
-  document.getElementById('rep-color').value = 'Black';
-  document.getElementById('rep-brand').value = 'Dell';
-  document.getElementById('rep-location').value = 'Engineering Building';
-  document.getElementById('rep-date').value = 'Today, 09:30 AM';
-  document.getElementById('rep-description').value =
-    'Lost my black Dell 65W laptop charger after attending the morning lecture in the Engineering Building. Realized it was missing when I arrived at the library.';
-  document.getElementById('rep-marks').value =
-    'Blue velcro cable strap attached and serial number CN-065W-AH92.';
-  selectPresetPhoto('charger_lost', 'report');
-  showToast('⚡ Auto-filled Ahmed’s Lost Black Laptop Charger details!');
+function clearPhoto(target) {
+  photos[target] = { url: '', thumb: '', kb: 0 };
+  const map = {
+    report: ['rep-photo-preview', 'rep-photo-empty', 'rep-file-input'],
+    claim: ['claim-photo-preview', 'claim-photo-empty', null],
+    more: ['more-proof-photo-preview', 'more-proof-photo-empty', null]
+  }[target];
+  const img = $(map[0]);
+  img.removeAttribute('src');
+  hide(img);
+  show($(map[1]));
+  if (map[2]) $(map[2]).value = '';
+  if (target === 'report') $('compression-telemetry').textContent = 'No photo selected';
 }
 
-function autofillKhalidFoundCharger() {
-  setReportFormType('FOUND');
-  document.getElementById('rep-title').value = 'Black Laptop Charger';
-  document.getElementById('rep-category').value = 'Electronics';
-  document.getElementById('rep-color').value = 'Black';
-  document.getElementById('rep-brand').value = 'Dell';
-  document.getElementById('rep-location').value = 'Engineering Building';
-  document.getElementById('rep-date').value = 'Today, 11:15 AM';
-  document.getElementById('rep-description').value =
-    'Found a black Dell USB-C laptop charger near a desk in the Engineering Building lecture hall. Handing over to Lost & Found Administrator.';
-  document.getElementById('rep-marks').value =
-    'Has a blue velcro strap and serial CN-065W-AH92.';
-  selectPresetPhoto('charger_found', 'report');
-  showToast('⚡ Auto-filled Khalid’s Found Black Laptop Charger details!');
-}
-
-function selectPresetPhoto(presetKey, target) {
-  const url = presetImages[presetKey] || presetImages.charger_lost;
-  if (!url) return;
-  if (target === 'report') {
-    reportPhotoDataUrl = url;
-    reportPhotoSizeKb = 186.5;
-    document.getElementById('rep-photo-preview').src = url;
-    document.getElementById('compression-telemetry').innerHTML =
-      `✅ NFR Image Compression Verified: <strong>186.5 KB</strong> / 3,072 KB max (PASS)`;
-  } else {
-    claimPhotoDataUrl = url;
-    document.getElementById('claim-photo-preview').src = url;
-  }
-}
-
-// Client-side Automatic Image Compression (< 3MB NFR)
+// Compresses a picked image in the browser (max 900px, JPEG) and builds a tiny preview used for privacy blur.
 function handleImageUpload(event, target) {
-  const file = event.target.files?.[0];
+  const file = event.target.files && event.target.files[0];
   if (!file) return;
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    showToast('Please choose a JPEG, PNG or WebP image.', 'error');
+    event.target.value = '';
+    return;
+  }
 
-  const originalKb = (file.size / 1024).toFixed(1);
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const maxDim = 900;
-      let width = img.width;
-      let height = img.height;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-      }
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
+      const draw = (maxDim, quality) => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', quality);
+      };
+      const url = draw(900, 0.82);
+      const thumb = draw(20, 0.5);
+      const kb = Math.round((url.length * 0.75) / 1024);
+      photos[target] = { url, thumb, kb };
 
-      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-      const compressedKb = Number(((compressedDataUrl.length * 0.75) / 1024).toFixed(1));
-
+      const previewIds = {
+        report: ['rep-photo-preview', 'rep-photo-empty'],
+        claim: ['claim-photo-preview', 'claim-photo-empty'],
+        more: ['more-proof-photo-preview', 'more-proof-photo-empty']
+      }[target];
+      $(previewIds[0]).src = url;
+      show($(previewIds[0]));
+      hide($(previewIds[1]));
       if (target === 'report') {
-        reportPhotoDataUrl = compressedDataUrl;
-        reportPhotoSizeKb = compressedKb;
-        document.getElementById('rep-photo-preview').src = compressedDataUrl;
-        document.getElementById('compression-telemetry').innerHTML =
-          `✅ NFR Auto-Compressed: <strong>${originalKb} KB &rarr; ${compressedKb} KB</strong> (&le; 3MB Limit PASS)`;
-      } else {
-        claimPhotoDataUrl = compressedDataUrl;
-        document.getElementById('claim-photo-preview').src = compressedDataUrl;
+        $('compression-telemetry').textContent = `Compressed ${(file.size / 1024).toFixed(0)} KB → ${kb} KB`;
       }
     };
+    img.onerror = () => showToast('That image could not be read.', 'error');
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
@@ -546,658 +615,487 @@ function handleImageUpload(event, target) {
 
 async function handleCreateReportSubmit(e) {
   e.preventDefault();
-  const payload = {
-    username: currentUser.username,
-    type: document.getElementById('report-type-input').value,
-    title: document.getElementById('rep-title').value,
-    category: document.getElementById('rep-category').value,
-    color: document.getElementById('rep-color').value,
-    brand: document.getElementById('rep-brand').value,
-    location: document.getElementById('rep-location').value,
-    date_lost_found: document.getElementById('rep-date').value,
-    description: document.getElementById('rep-description').value,
-    distinguishing_marks: document.getElementById('rep-marks').value,
-    photo_url: reportPhotoDataUrl,
-    image_size_kb: reportPhotoSizeKb,
-    handed_to_office: document.getElementById('rep-handed').checked
-  };
+  const type = $('report-type-input').value;
+  if (type === 'FOUND' && !$('rep-handed').checked) {
+    return showToast('Please confirm that you are handing the item to the Lost & Found office.', 'error');
+  }
+  const when = new Date($('rep-date').value);
+  if (Number.isNaN(when.getTime())) return showToast('Enter a valid date and time.', 'error');
 
+  const submit = $('report-submit');
+  submit.disabled = true;
   try {
-    const res = await apiRequest('/reports', {
+    const res = await api('/reports', {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: {
+        type,
+        title: $('rep-title').value,
+        category: $('rep-category').value,
+        color: $('rep-color').value,
+        brand: $('rep-brand').value,
+        location: $('rep-location').value,
+        date_lost_found: when.toISOString(),
+        description: $('rep-description').value,
+        distinguishing_marks: $('rep-marks').value,
+        photo_url: photos.report.url,
+        photo_thumb_url: photos.report.thumb,
+        handed_to_office: type === 'FOUND' && $('rep-handed').checked
+      }
     });
-
-    const matchCount = res.matchStats?.matchesFound || 0;
-    const matchMs = res.matchStats?.executionTimeMs || 0.8;
-
-    if (matchCount > 0) {
-      showToast(
-        `🎉 Report saved! Automated Match Engine found <strong>${matchCount} match(es)</strong> in <strong>${matchMs} ms</strong> (&lt;3s NFR) &amp; sent match notification!`
-      );
-    } else {
-      showToast(`✅ ${payload.type} report created &amp; scanned in ${matchMs} ms. No match yet—monitoring active.`);
-    }
-
-    document.getElementById('create-report-form').reset();
+    const n = res.matchStats.matchesFound;
+    showToast(n > 0
+      ? `Report saved. ${n} possible match${n === 1 ? '' : 'es'} found in ${res.matchStats.executionTimeMs} ms.`
+      : 'Report saved. We will notify you if a match appears.');
+    resetReportForm();
     await refreshAllData();
-    switchView(matchCount > 0 ? 'claims' : 'home');
+    switchView(n > 0 && type === 'LOST' ? 'claims' : 'home');
   } catch (err) {
-    showToast(`❌ Error: ${err.message}`);
+    showToast(err.message, 'error');
+  } finally {
+    submit.disabled = false;
   }
 }
 
-// ==================== 7. OWNERSHIP CLAIMS & BPMN FLOWS ====================
-function openClaimModal(foundReportId, lostReportId, foundTitle) {
-  document.getElementById('claim-found-report-id').value = foundReportId;
-  document.getElementById('claim-lost-report-id').value = lostReportId || '';
-  document.getElementById('claim-modal-subtitle').textContent =
-    `Claiming Found Item #${foundReportId}: "${foundTitle}". Provide visual proof or serial identifiers.`;
-  document.getElementById('claim-modal').classList.remove('hidden');
+// ---------------------------------------------------------------------------
+// Claims (student side)
+// ---------------------------------------------------------------------------
+function openClaimModal(foundId, lostId) {
+  const found = allReports.find((r) => r.id === foundId) || allMatches.find((m) => m.found_report_id === foundId);
+  const title = found ? (found.title || found.found_title) : `#${foundId}`;
+  $('claim-found-report-id').value = foundId;
+  $('claim-lost-report-id').value = lostId || '';
+  $('claim-modal-subtitle').textContent = `Claiming found item #${foundId}: "${title}". Only the real owner can describe it accurately.`;
+  $('claim-proof-text').value = '';
+  clearPhoto('claim');
+  show($('claim-modal'));
 }
 
-function closeClaimModal() {
-  document.getElementById('claim-modal').classList.add('hidden');
-}
-
-function autofillAhmedClaimProof() {
-  document.getElementById('claim-proof-text').value =
-    'This is my Dell 65W USB-C charger lost in the Engineering Building after my morning lecture. It has a blue velcro cable strap and the serial number on the brick is CN-065W-AH92 (shown in my attached close-up photo).';
-  selectPresetPhoto('charger_proof', 'claim');
-}
+function closeClaimModal() { hide($('claim-modal')); }
 
 async function handleSubmitClaim(e) {
   e.preventDefault();
-  const found_report_id = Number(document.getElementById('claim-found-report-id').value);
-  const lost_report_id = document.getElementById('claim-lost-report-id').value
-    ? Number(document.getElementById('claim-lost-report-id').value)
-    : null;
-  const proof_description = document.getElementById('claim-proof-text').value;
-
   try {
-    await apiRequest('/claims', {
+    await api('/claims', {
       method: 'POST',
-      body: JSON.stringify({
-        found_report_id,
-        lost_report_id,
-        username: currentUser.username,
-        proof_description,
-        proof_photo_url: claimPhotoDataUrl
-      })
+      body: {
+        found_report_id: Number($('claim-found-report-id').value),
+        lost_report_id: $('claim-lost-report-id').value ? Number($('claim-lost-report-id').value) : undefined,
+        proof_description: $('claim-proof-text').value,
+        proof_photo_url: photos.claim.url
+      }
     });
-
     closeClaimModal();
-    showToast('🛡️ Ownership Claim submitted! Status is now <strong>Pending</strong> Admin verification.');
+    showToast('Claim submitted. An administrator will review it.');
     await refreshAllData();
     switchView('claims');
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
 }
 
-function getStatusPillClass(status) {
+function claimPillClass(status) {
   if (status === 'More Proof Requested') return 'MoreProof';
   if (status === 'Hold Item') return 'Hold';
   return status;
 }
 
 function renderClaimsAndMatchesView() {
-  const matchesEl = document.getElementById('claims-view-matches');
-  if (allMatches.length === 0) {
-    matchesEl.innerHTML = `<div class="alert-box">No automated matches currently active.</div>`;
-  } else {
-    matchesEl.innerHTML = allMatches.map(buildMatchCardHtml).join('');
-  }
+  $('claims-view-matches').innerHTML = allMatches.length
+    ? allMatches.map(buildMatchCardHtml).join('')
+    : emptyState('No matches right now.');
 
-  const claimsEl = document.getElementById('student-claims-container');
-  if (allClaims.length === 0) {
-    claimsEl.innerHTML = `<div class="alert-box">No ownership claims submitted yet. Click "Submit Ownership Claim" on a Found item or Match above.</div>`;
+  const el = $('student-claims-container');
+  const mine = currentUser.role === 'admin' ? allClaims : allClaims.filter((c) => c.claimant_id === currentUser.id);
+  if (!mine.length) {
+    el.innerHTML = emptyState('You have not submitted any ownership claims yet.');
     return;
   }
 
-  claimsEl.innerHTML = allClaims
-    .map((c) => {
-      const pillClass = getStatusPillClass(c.status);
-      const isMyClaim = c.claimant_username.toLowerCase() === currentUser.username.toLowerCase();
+  el.innerHTML = mine.map((c) => {
+    const isMine = c.claimant_id === currentUser.id;
+    let action = '';
+    if (c.status === 'More Proof Requested' && isMine) {
+      action = `
+        <div class="alert-box alert-warn" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div><strong>🔎 The administrator needs more proof:</strong> "${escapeHtml(c.admin_feedback)}"</div>
+          <button class="btn btn-warn btn-sm" data-action="more-proof" data-id="${c.id}">+ Provide proof</button>
+        </div>`;
+    } else if (c.status === 'Approved') {
+      action = `
+        <div class="alert-box" style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <strong>🎉 Claim approved.</strong> ${escapeHtml(c.admin_feedback)}
+            ${c.receipt_confirmed ? '<br/><span style="color:#059669;font-weight:700;">✓ You confirmed receipt</span>' : ''}
+          </div>
+          ${!c.receipt_confirmed && isMine ? `<button class="btn btn-primary btn-sm" data-action="confirm-receipt" data-id="${c.id}">✍️ I received the item</button>` : ''}
+        </div>`;
+    } else if (c.status === 'Returned') {
+      action = `<div class="alert-box" style="margin-top:12px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;">✅ <strong>Returned — case resolved.</strong> ${escapeHtml(c.admin_feedback)}</div>`;
+    } else if (c.status === 'Rejected' || c.status === 'Hold Item') {
+      action = `<div class="alert-box alert-warn" style="margin-top:12px;"><strong>${escapeHtml(c.status)}:</strong> ${escapeHtml(c.admin_feedback)}</div>`;
+    }
 
-      // BPMN Fig. 1: If Admin requested more proof, show button to submit additional proof!
-      let studentActionHtml = '';
-      if (c.status === 'More Proof Requested' && (isMyClaim || currentUser.role === 'admin')) {
-        studentActionHtml = `
-          <div class="alert-box alert-warn" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div>
-              <strong>🔎 Admin Requested More Proof (BPMN Fig. 1):</strong> "${escapeHtml(c.admin_feedback)}"
-            </div>
-            <button class="btn btn-warn btn-sm" onclick="openMoreProofModal(${c.id}, '${escapeQuotes(c.admin_feedback)}')">
-              + Provide Additional Proof
-            </button>
+    return `
+      <div class="claim-card">
+        <div class="claim-card-header">
+          <div>
+            <strong>Claim #${c.id} • ${escapeHtml(c.found_title)}</strong>
+            <span style="font-size:12.5px;color:#64748b;margin-left:10px;">By <strong>@${escapeHtml(c.claimant_username)}</strong> • ${escapeHtml(c.found_location)} • ${escapeHtml(formatWhen(c.created_at))}</span>
           </div>
-        `;
-      } else if (c.status === 'Approved') {
-        // BPMN Fig. 5: Student confirms physical item receipt
-        studentActionHtml = `
-          <div class="alert-box" style="margin-top:12px;background:#eff6ff;border:1px solid #93c5fd;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div>
-              <strong>🎉 Claim Approved!</strong> ${escapeHtml(c.admin_feedback)}
-              ${c.receipt_confirmed ? '<br/><span style="color:#059669;font-weight:700;">✓ Student Confirmed Physical Item Receipt (BPMN Fig. 5)</span>' : ''}
-            </div>
-            ${
-              !c.receipt_confirmed
-                ? `<button class="btn btn-primary btn-sm" onclick="confirmStudentReceipt(${c.id})">
-                     ✍️ Confirm Item Receipt (BPMN Fig. 5)
-                   </button>`
-                : ''
-            }
-          </div>
-        `;
-      } else if (c.status === 'Returned') {
-        studentActionHtml = `
-          <div class="alert-box" style="margin-top:12px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;">
-            ✅ <strong>Item Status: Returned • Case Status: Resolved.</strong> ${escapeHtml(c.admin_feedback)}
-          </div>
-        `;
-      }
-
-      return `
-        <div class="claim-card">
-          <div class="claim-card-header">
-            <div>
-              <strong>Claim #CLM-${c.id} • ${escapeHtml(c.found_title)}</strong>
-              <span style="font-size:12.5px;color:#64748b;margin-left:10px;">
-                Claimant: <strong>@${escapeHtml(c.claimant_username)}</strong> • Location: ${escapeHtml(c.found_location)}
-              </span>
-            </div>
-            <span class="claim-status-pill ${pillClass}">${escapeHtml(c.status)}</span>
-          </div>
-
-          <div style="margin-top:12px;font-size:13.5px;color:#334155;">
-            <strong>Submitted Proof:</strong> ${escapeHtml(c.proof_description)}
-            ${
-              c.additional_proof_text
-                ? `<div style="margin-top:6px;color:#0369a1;"><strong>Additional Proof Provided:</strong> ${escapeHtml(c.additional_proof_text)}</div>`
-                : ''
-            }
-          </div>
-
-          ${studentActionHtml}
+          <span class="claim-status-pill ${claimPillClass(c.status)}">${escapeHtml(c.status)}</span>
         </div>
-      `;
-    })
-    .join('');
+        <div style="margin-top:12px;font-size:13.5px;color:#334155;">
+          <strong>Your proof:</strong> ${escapeHtml(c.proof_description)}
+          ${c.additional_proof_text ? `<div style="margin-top:6px;color:#0369a1;"><strong>Additional proof:</strong> ${escapeHtml(c.additional_proof_text)}</div>` : ''}
+        </div>
+        ${action}
+      </div>`;
+  }).join('');
 }
 
-function openMoreProofModal(claimId, adminPrompt) {
-  document.getElementById('more-proof-claim-id').value = claimId;
-  document.getElementById('more-proof-admin-prompt').innerHTML =
-    `<strong>Administrator Request:</strong> "${escapeHtml(adminPrompt)}"`;
-  document.getElementById('more-proof-modal').classList.remove('hidden');
+function openMoreProofModal(claimId) {
+  const claim = allClaims.find((c) => c.id === claimId);
+  $('more-proof-claim-id').value = claimId;
+  $('more-proof-admin-prompt').textContent = `Administrator: "${claim ? claim.admin_feedback : ''}"`;
+  $('more-proof-text').value = '';
+  clearPhoto('more');
+  show($('more-proof-modal'));
 }
 
-function closeMoreProofModal() {
-  document.getElementById('more-proof-modal').classList.add('hidden');
-}
+function closeMoreProofModal() { hide($('more-proof-modal')); }
 
 async function handleMoreProofSubmit(e) {
   e.preventDefault();
-  const claimId = Number(document.getElementById('more-proof-claim-id').value);
-  const additional_proof_text = document.getElementById('more-proof-text').value;
-
   try {
-    await apiRequest(`/claims/${claimId}/more-proof`, {
+    await api(`/claims/${Number($('more-proof-claim-id').value)}/more-proof`, {
       method: 'POST',
-      body: JSON.stringify({ additional_proof_text })
+      body: { additional_proof_text: $('more-proof-text').value, additional_photo_url: photos.more.url }
     });
     closeMoreProofModal();
-    showToast('✅ Additional proof submitted! Claim status returned to <strong>Pending</strong> for Admin review.');
+    showToast('Additional proof sent. Your claim is pending review again.');
     await refreshAllData();
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
 }
 
-async function confirmStudentReceipt(claimId) {
+async function confirmReceipt(claimId) {
   try {
-    await apiRequest(`/claims/${claimId}/confirm-receipt`, { method: 'POST', body: JSON.stringify({}) });
-    showToast('✍️ Physical item receipt confirmed (BPMN Fig. 5)! Ready for Admin to mark Returned.');
+    await api(`/claims/${claimId}/confirm-receipt`, { method: 'POST', body: {} });
+    showToast('Thanks — receipt confirmed.');
     await refreshAllData();
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
 }
 
-// ==================== 8. ADMIN & DEVOPS ACTIONS (CLAIMS, HANDOVER, MODERATION) ====================
-function buildAdminClaimComparisonCard(c, isDarkConsole = false) {
-  const pillClass = getStatusPillClass(c.status);
-  const feedbackInputId = `${isDarkConsole ? 'devops' : 'admin'}-feedback-${c.id}`;
+// ---------------------------------------------------------------------------
+// Administrator: claims & moderation
+// ---------------------------------------------------------------------------
+function photoBlock(url, label) {
+  return url
+    ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(label)}" />`
+    : '<div class="no-photo no-photo-box">No photo</div>';
+}
+
+function buildAdminClaimCard(c, dark) {
+  const inputId = `${dark ? 'devops' : 'admin'}-feedback-${c.id}`;
+  const act = (action, cls, label) =>
+    `<button class="btn ${cls} btn-sm" data-action="admin-claim" data-id="${c.id}" data-act="${action}" data-input="${inputId}">${label}</button>`;
+
+  let buttons = '';
+  if (c.status === 'Pending') {
+    buttons = act('request_more_proof', 'btn-warn', '🔎 Request more proof') + act('approve', 'btn-primary', '✅ Approve') + act('reject', 'btn-danger', '❌ Reject');
+  } else if (c.status === 'More Proof Requested') {
+    buttons = act('reject', 'btn-danger', '❌ Reject') + '<span style="font-size:12px;opacity:.8;">Waiting for the claimant…</span>';
+  } else if (c.status === 'Approved' || c.status === 'Hold Item') {
+    buttons = act('mark_returned', 'btn-success', '🤝 Verify ID & mark returned')
+      + (c.status === 'Approved' ? act('verify_identity_no_hold', 'btn-outline', '⚠️ ID failed → hold item') : '');
+  } else {
+    buttons = `<span style="font-size:12px;opacity:.8;">Closed: ${escapeHtml(c.status)}</span>`;
+  }
 
   return `
-    <div class="${isDarkConsole ? 'devops-claim-card' : 'claim-card'}">
+    <div class="${dark ? 'devops-claim-card' : 'claim-card'}">
       <div class="claim-card-header">
         <div>
-          <strong style="font-size:15.5px;">Claim #CLM-${c.id}: ${escapeHtml(c.found_title)}</strong>
-          <span style="font-size:12.5px;opacity:0.8;margin-left:10px;">
-            Claimant: <strong>@${escapeHtml(c.claimant_username)}</strong> | Finder: <strong>@${escapeHtml(c.finder_username)}</strong>
-          </span>
+          <strong style="font-size:15.5px;">Claim #${c.id}: ${escapeHtml(c.found_title)}</strong>
+          <span style="font-size:12.5px;opacity:0.8;margin-left:10px;">Claimant <strong>@${escapeHtml(c.claimant_username)}</strong> • Finder <strong>@${escapeHtml(c.finder_username)}</strong> • ${escapeHtml(formatWhen(c.created_at))}</span>
         </div>
-        <span class="claim-status-pill ${pillClass}">${escapeHtml(c.status)}</span>
+        <span class="claim-status-pill ${claimPillClass(c.status)}">${escapeHtml(c.status)}</span>
       </div>
 
-      <!-- 3-Column Side-by-Side Comparison (Lost Report vs Unblurred Found Report vs Claimant Proof) -->
       <div class="claim-comparison-grid">
         <div class="claim-col">
-          <h5>1. Claimant's Lost Report</h5>
-          ${c.lost_photo_url ? `<img src="${c.lost_photo_url}" alt="Lost Report" />` : ''}
+          <h5>1. Claimant's lost report</h5>
+          ${c.lost_title ? photoBlock(c.lost_photo_url, 'Lost report') : ''}
           <div style="font-size:12.5px;">
-            <strong>${escapeHtml(c.lost_title || 'Direct Claim on Found Listing')}</strong><br/>
+            <strong>${escapeHtml(c.lost_title || 'No lost report linked')}</strong><br/>
             <span>Marks: ${escapeHtml(c.lost_marks || 'N/A')}</span>
           </div>
         </div>
-
         <div class="claim-col">
-          <h5>2. Found Item (🔓 Unblurred Admin View)</h5>
-          <img src="${c.found_photo_url}" alt="Found Unblurred" />
+          <h5>2. Found item (unblurred)</h5>
+          ${photoBlock(c.found_photo_url, 'Found item')}
           <div style="font-size:12.5px;">
             <strong>${escapeHtml(c.found_title)} (${escapeHtml(c.found_location)})</strong><br/>
-            <span>Secret Marks: <strong>${escapeHtml(c.found_marks || 'None')}</strong></span>
+            <span>Private marks: <strong>${escapeHtml(c.found_marks || 'None')}</strong></span>
           </div>
         </div>
-
         <div class="claim-col">
-          <h5>3. Submitted Ownership Proof</h5>
-          <img src="${c.proof_photo_url}" alt="Proof Photo" />
+          <h5>3. Claimant's proof</h5>
+          ${photoBlock(c.proof_photo_url, 'Proof')}
           <div style="font-size:12.5px;">
             <strong>Proof:</strong> ${escapeHtml(c.proof_description)}
-            ${
-              c.additional_proof_text
-                ? `<div style="margin-top:4px;color:#38bdf8;"><strong>+ Additional Proof:</strong> ${escapeHtml(c.additional_proof_text)}</div>`
-                : ''
-            }
+            ${c.additional_proof_text ? `<div style="margin-top:4px;color:#38bdf8;"><strong>+ Additional:</strong> ${escapeHtml(c.additional_proof_text)}</div>` : ''}
+            ${c.additional_photo_url ? photoBlock(c.additional_photo_url, 'Additional proof') : ''}
           </div>
         </div>
       </div>
 
-      <!-- Admin Decision Controls (BPMN Fig. 1 & Fig. 5) -->
       <div class="devops-action-bar">
-        <input
-          type="text"
-          id="${feedbackInputId}"
-          class="${isDarkConsole ? 'devops-feedback-input' : ''}"
-          style="${!isDarkConsole ? 'flex:1;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;' : ''}"
-          placeholder="Optional Admin note / reason for requesting more proof..."
-          value="${escapeHtml(c.admin_feedback || '')}"
-        />
-
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          <button class="btn btn-warn btn-sm" onclick="handleAdminClaimAction(${c.id}, 'request_more_proof', '${feedbackInputId}')">
-            🔎 Request More Proof (BPMN Fig. 1)
-          </button>
-          <button class="btn btn-primary btn-sm" onclick="handleAdminClaimAction(${c.id}, 'approve', '${feedbackInputId}')">
-            ✅ Approve Claim
-          </button>
-          <button class="btn btn-danger btn-sm" onclick="handleAdminClaimAction(${c.id}, 'reject', '${feedbackInputId}')">
-            ❌ Reject
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="handleAdminClaimAction(${c.id}, 'verify_identity_no_hold', '${feedbackInputId}')">
-            ⚠️ ID Failed &rarr; Hold Item (Fig. 5)
-          </button>
-          <button class="btn btn-success btn-sm" onclick="handleAdminClaimAction(${c.id}, 'mark_returned', '${feedbackInputId}')">
-            🤝 Verify ID &amp; Mark Returned (Resolve Case)
-          </button>
-        </div>
+        <input type="text" id="${inputId}" maxlength="500" class="${dark ? 'devops-feedback-input' : ''}"
+          style="${dark ? '' : 'flex:1;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;'}"
+          placeholder="Optional note to the student…" />
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">${buttons}</div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-async function handleAdminClaimAction(claimId, action, inputId) {
-  const inputEl = document.getElementById(inputId);
-  const admin_feedback = inputEl ? inputEl.value.trim() : '';
-
+async function adminClaimAction(claimId, action, inputId) {
+  const input = $(inputId);
   try {
-    await apiRequest(`/claims/${claimId}/admin-action`, {
-      method: 'POST',
-      body: JSON.stringify({ action, admin_feedback })
-    });
-
+    await api(`/claims/${claimId}/admin-action`, { method: 'POST', body: { action, admin_feedback: input ? input.value.trim() : '' } });
     const labels = {
-      request_more_proof: '🔎 Requested More Proof from student (Notification sent!)',
-      approve: '✅ Ownership Claim Approved! Student notified to pick up item.',
-      reject: '❌ Ownership Claim Rejected.',
-      verify_identity_no_hold: '⚠️ Claimant identity check failed -> Physical Item placed on Hold (BPMN Fig. 5).',
-      mark_returned: '🤝 Physical Item Marked Returned &amp; Case Resolved!'
+      request_more_proof: 'More proof requested. The student was notified.',
+      approve: 'Claim approved. The student was notified.',
+      reject: 'Claim rejected.',
+      verify_identity_no_hold: 'Item placed on hold.',
+      mark_returned: 'Item marked as returned. Case resolved.'
     };
     showToast(labels[action] || 'Claim updated.');
     await refreshAllData();
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
 }
 
-// BPMN Fig. 4 Suspicious / Duplicate Moderation
-async function flagReportSuspicious(reportId) {
+async function flagReport(reportId) {
   try {
-    await apiRequest(`/reports/${reportId}/moderate`, {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'flag',
-        reason: 'Flagged by campus user as suspicious or duplicate report.'
-      })
-    });
-    showToast('🚩 Report flagged for Administrator review (BPMN Fig. 4).');
+    await api(`/reports/${reportId}/flag`, { method: 'POST', body: { reason: 'Flagged by a campus member as suspicious or a duplicate.' } });
+    showToast('Thanks. An administrator will review this report.');
     await refreshAllData();
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
 }
 
-async function handleModerateReport(reportId, action) {
+async function deleteOwnReport(reportId) {
+  if (!window.confirm('Delete this report? This cannot be undone.')) return;
   try {
-    await apiRequest(`/reports/${reportId}/moderate`, {
-      method: 'POST',
-      body: JSON.stringify({ action })
-    });
-
-    const msgs = {
-      dismiss_flag: '✓ Review Flag Dismissed — Report remains active &amp; Admin Notice sent (BPMN Fig. 4).',
-      modify_or_delete: '🗑️ Suspicious / Duplicate Report deleted &amp; Admin Notice sent (BPMN Fig. 4).',
-      suspend_user: '🚫 Violating User Suspended &amp; Admin Notice sent (BPMN Fig. 4).'
-    };
-    showToast(msgs[action] || 'Moderation applied.');
+    await api(`/reports/${reportId}`, { method: 'DELETE', body: {} });
+    showToast('Report deleted.');
     await refreshAllData();
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
+}
+
+async function moderateReport(reportId, action) {
+  const confirmations = {
+    delete_report: 'Delete this report permanently?',
+    suspend_user: 'Suspend the owner of this report? They will be signed out and unable to log in.'
+  };
+  if (confirmations[action] && !window.confirm(confirmations[action])) return;
+  try {
+    await api(`/reports/${reportId}/moderate`, { method: 'POST', body: { action } });
+    showToast({ dismiss_flag: 'Flag dismissed. The report stays active.', delete_report: 'Report deleted.', suspend_user: 'User suspended.' }[action]);
+    await refreshAllData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+function buildModerationCard(r, dark) {
+  return `
+    <div class="${dark ? 'devops-mod-card' : 'claim-card'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="type-badge ${r.type}">#${r.id} • ${r.type}</span>
+        <span style="font-size:12px;color:#fbbf24;font-weight:700;">🚩 FLAGGED</span>
+      </div>
+      <h4 style="margin-top:10px;font-size:16px;">${escapeHtml(r.title)}</h4>
+      <p style="font-size:12.5px;opacity:0.85;margin-top:4px;">Posted by <strong>@${escapeHtml(r.owner_username)}</strong> at ${escapeHtml(r.location)}</p>
+      <p style="font-size:12.5px;margin-top:8px;">${escapeHtml(r.description)}</p>
+      <p style="font-size:12.5px;margin-top:8px;padding:8px;background:rgba(245,158,11,0.15);border-radius:8px;"><strong>Reason:</strong> ${escapeHtml(r.suspicious_reason || 'Suspicious or duplicate listing')}</p>
+      <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-success btn-sm" data-action="moderate" data-id="${r.id}" data-act="dismiss_flag">✓ Valid — dismiss flag</button>
+        <button class="btn btn-warn btn-sm" data-action="moderate" data-id="${r.id}" data-act="delete_report">🗑️ Delete report</button>
+        <button class="btn btn-danger btn-sm" data-action="moderate" data-id="${r.id}" data-act="suspend_user">🚫 Suspend @${escapeHtml(r.owner_username)}</button>
+      </div>
+    </div>`;
 }
 
 function renderAdminWorkspaceView() {
-  const claimsList = document.getElementById('admin-page-claims-list');
-  if (claimsList) {
-    claimsList.innerHTML =
-      allClaims.length === 0
-        ? `<div class="alert-box">No claims submitted yet.</div>`
-        : allClaims.map((c) => buildAdminClaimComparisonCard(c, false)).join('');
-  }
+  if (currentUser.role !== 'admin') return;
+  const keepFocus = (id) => { const el = document.activeElement; return el && el.tagName === 'INPUT' && $(id).contains(el); };
 
-  const suspList = document.getElementById('admin-page-suspicious-list');
-  if (suspList) {
-    const flagged = allReports.filter((r) => r.is_suspicious);
-    suspList.innerHTML =
-      flagged.length === 0
-        ? `<div class="alert-box">No flagged suspicious reports in queue.</div>`
-        : flagged.map((r) => buildModerationCardHtml(r, false)).join('');
+  if (!keepFocus('admin-page-claims-list')) {
+    $('admin-page-claims-list').innerHTML = allClaims.length ? allClaims.map((c) => buildAdminClaimCard(c, false)).join('') : emptyState('No ownership claims yet.');
   }
+  const flagged = allReports.filter((r) => r.is_suspicious);
+  $('admin-page-suspicious-list').innerHTML = flagged.length ? flagged.map((r) => buildModerationCard(r, false)).join('') : emptyState('No flagged reports.');
 }
 
-function buildModerationCardHtml(r, isDark = true) {
-  return `
-    <div class="${isDark ? 'devops-mod-card' : 'claim-card'}">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span class="type-badge ${r.type}">#${r.id} • ${r.type}</span>
-        <span style="font-size:12px;color:#fbbf24;font-weight:700;">🚩 FLAGGED SUSPICIOUS</span>
-      </div>
-      <h4 style="margin-top:10px;font-size:16px;">${escapeHtml(r.title)}</h4>
-      <p style="font-size:12.5px;opacity:0.85;margin-top:4px;">
-        Posted by <strong>@${escapeHtml(r.username)}</strong> at ${escapeHtml(r.location)}
-      </p>
-      <p style="font-size:12.5px;margin-top:8px;padding:8px;background:rgba(245,158,11,0.15);border-radius:8px;">
-        <strong>Flag Reason:</strong> ${escapeHtml(r.suspicious_reason || 'Suspicious / duplicate listing')}
-      </p>
-
-      <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;">
-        <button class="btn btn-success btn-sm" onclick="handleModerateReport(${r.id}, 'dismiss_flag')">
-          ✓ Valid: Dismiss Flag
-        </button>
-        <button class="btn btn-warn btn-sm" onclick="handleModerateReport(${r.id}, 'modify_or_delete')">
-          🗑️ Modify / Delete Report
-        </button>
-        <button class="btn btn-danger btn-sm" onclick="handleModerateReport(${r.id}, 'suspend_user')">
-          🚫 Violates: Suspend @${escapeHtml(r.username)}
-        </button>
-      </div>
-    </div>
-  `;
+// ---------------------------------------------------------------------------
+// DevOps console (administrators only)
+// ---------------------------------------------------------------------------
+function toggleDevOpsModal(force) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const overlay = $('devops-overlay');
+  const open = typeof force === 'boolean' ? force : overlay.classList.contains('hidden');
+  overlay.classList.toggle('hidden', !open);
+  if (open) refreshAllData();
 }
 
-// ==================== 9. DARK-BLUE DEVOPS & ADMIN CONSOLE ====================
-function toggleDevOpsModal(forceState) {
-  const overlay = document.getElementById('devops-overlay');
-  const shouldOpen = typeof forceState === 'boolean' ? forceState : overlay.classList.contains('hidden');
-  if (shouldOpen) {
-    overlay.classList.remove('hidden');
-    refreshAllData();
-  } else {
-    overlay.classList.add('hidden');
-  }
-}
-
-function switchDevOpsTab(tabName) {
-  document.querySelectorAll('.devops-tab').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.dtab === tabName);
-  });
-  document.getElementById('dpanel-claims').classList.toggle('hidden', tabName !== 'claims');
-  document.getElementById('dpanel-moderation').classList.toggle('hidden', tabName !== 'moderation');
-  document.getElementById('dpanel-telemetry').classList.toggle('hidden', tabName !== 'telemetry');
+function switchDevOpsTab(tab) {
+  document.querySelectorAll('.devops-tab').forEach((b) => b.classList.toggle('active', b.dataset.dtab === tab));
+  ['claims', 'moderation', 'telemetry'].forEach((t) => $(`dpanel-${t}`).classList.toggle('hidden', t !== tab));
 }
 
 function renderDevOpsConsole() {
-  if (!appHealth) return;
+  if (!currentUser || currentUser.role !== 'admin' || !overview) return;
+  const flagged = allReports.filter((r) => r.is_suspicious);
+  $('dtab-claims-count').textContent = allClaims.length;
+  $('dtab-mod-count').textContent = flagged.length;
 
-  // 1. Render 1-Click Persona Switcher Pills
-  const switcherEl = document.getElementById('devops-user-switcher');
-  if (switcherEl) {
-    const users = appHealth.users || [];
-    switcherEl.innerHTML = users
-      .map((u) => {
-        const isCurrent = currentUser && currentUser.username.toLowerCase() === u.username.toLowerCase();
-        const roleIcon = u.role === 'admin' ? '🛡️' : '🎓';
-        return `
-          <button
-            class="devops-btn ${isCurrent ? 'active-persona' : ''}"
-            onclick="devopsSwitchUser('${escapeQuotes(u.username)}')"
-          >
-            ${roleIcon} @${escapeHtml(u.username)} ${u.status === 'suspended' ? '(🚫 Suspended)' : ''}
-          </button>
-        `;
-      })
-      .join('');
+  const insideInput = (id) => { const el = document.activeElement; return el && el.tagName === 'INPUT' && $(id).contains(el); };
+  if (!insideInput('devops-claims-container')) {
+    $('devops-claims-container').innerHTML = allClaims.length
+      ? allClaims.map((c) => buildAdminClaimCard(c, true)).join('')
+      : '<div class="devops-panel-intro">No ownership claims yet. They appear here as soon as a student submits one.</div>';
   }
+  $('devops-moderation-container').innerHTML = flagged.length
+    ? flagged.map((r) => buildModerationCard(r, true)).join('')
+    : '<div class="devops-panel-intro">No flagged reports.</div>';
 
-  // 2. Render Badges
-  document.getElementById('dtab-claims-count').textContent = allClaims.length;
-  const flaggedReports = allReports.filter((r) => r.is_suspicious);
-  document.getElementById('dtab-mod-count').textContent = flaggedReports.length;
+  const c = overview.counts;
+  const row = (label, value, color = '#e2e8f0') => `<li><span>${escapeHtml(label)}</span><strong style="color:${color};">${escapeHtml(value)}</strong></li>`;
+  $('devops-nfr-list').innerHTML = [
+    row('Database', `${overview.database.engine} — ${overview.database.file}`, overview.database.persistent ? '#34d399' : '#fbbf24'),
+    row('Accounts', c.users),
+    row('Reports (lost / found)', `${c.reports} (${c.lost} / ${c.found})`),
+    row('Matches', c.matches),
+    row('Ownership claims', c.claims),
+    row('Active sessions', c.sessions),
+    row('Last match time (limit 3000 ms)', overview.nfr.lastMatchLatencyMs === null ? 'no matches yet' : `${overview.nfr.lastMatchLatencyMs} ms`, '#34d399'),
+    row('Max photo size', `${overview.nfr.maxImageSizeKb} KB`)
+  ].join('');
 
-  // 3. Render Claims inside Dark-Blue DevOps Panel
-  const devopsClaimsEl = document.getElementById('devops-claims-container');
-  if (devopsClaimsEl) {
-    devopsClaimsEl.innerHTML =
-      allClaims.length === 0
-        ? `<div class="devops-panel-intro">No ownership claims currently in SQLite. Use the Scenario Loader above or submit a claim as Ahmed!</div>`
-        : allClaims.map((c) => buildAdminClaimComparisonCard(c, true)).join('');
-  }
+  $('devops-users-table-wrap').innerHTML = `
+    <table style="width:100%;font-size:12.5px;border-collapse:collapse;">
+      <thead>
+        <tr style="text-align:left;color:#7dd3fc;border-bottom:1px solid rgba(56,189,248,0.2);">
+          <th style="padding:6px;">ID</th><th style="padding:6px;">Username</th><th style="padding:6px;">Role</th>
+          <th style="padding:6px;">Reports</th><th style="padding:6px;">Status</th><th style="padding:6px;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${overview.users.map((u) => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:6px;">#${u.id}</td>
+            <td style="padding:6px;font-weight:700;">@${escapeHtml(u.username)}</td>
+            <td style="padding:6px;">${escapeHtml(u.role)}</td>
+            <td style="padding:6px;">${u.report_count}</td>
+            <td style="padding:6px;color:${u.status === 'active' ? '#34d399' : '#f87171'};font-weight:700;">${escapeHtml(u.status)}</td>
+            <td style="padding:6px;">${u.role === 'admin' ? '—' : `<button class="devops-btn" style="padding:3px 8px;font-size:11px;" data-action="toggle-user" data-id="${u.id}">${u.status === 'active' ? 'Suspend' : 'Restore'}</button>`}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 
-  // 4. Render Suspicious Reports inside Dark-Blue DevOps Panel
-  const devopsModEl = document.getElementById('devops-moderation-container');
-  if (devopsModEl) {
-    devopsModEl.innerHTML =
-      flaggedReports.length === 0
-        ? `<div class="devops-panel-intro">No suspicious reports currently flagged. You can click the 🚩 button on any campus listing to test the BPMN Fig. 4 moderation workflow!</div>`
-        : flaggedReports.map((r) => buildModerationCardHtml(r, true)).join('');
-  }
-
-  // 5. Render NFR Status & SQLite Users Table & Logs
-  const nfrListEl = document.getElementById('devops-nfr-list');
-  if (nfrListEl && appHealth.nfr) {
-    nfrListEl.innerHTML = `
-      <li>
-        <span>⚡ Automated Match Performance (&le; 3,000 ms)</span>
-        <strong style="color:#34d399;">${appHealth.nfr.lastMatchLatencyMs} ms (PASS)</strong>
-      </li>
-      <li>
-        <span>🔒 Privacy &amp; Found-Item Photo Blur</span>
-        <strong style="color:#34d399;">ACTIVE (PASS)</strong>
-      </li>
-      <li>
-        <span>🖼️ Image Compression &amp; Storage (&le; 3.0 MB)</span>
-        <strong style="color:#34d399;">ENFORCED (PASS)</strong>
-      </li>
-      <li>
-        <span>🛡️ Role-Based Access Control (Student vs Admin)</span>
-        <strong style="color:#34d399;">STRICT (PASS)</strong>
-      </li>
-      <li>
-        <span>📱 Mobile-Responsive Usability</span>
-        <strong style="color:#34d399;">RESPONSIVE GRID (PASS)</strong>
-      </li>
-    `;
-  }
-
-  const usersWrap = document.getElementById('devops-users-table-wrap');
-  if (usersWrap && appHealth.users) {
-    usersWrap.innerHTML = `
-      <table style="width:100%;font-size:12.5px;border-collapse:collapse;">
-        <thead>
-          <tr style="text-align:left;color:#7dd3fc;border-bottom:1px solid rgba(56,189,248,0.2);">
-            <th style="padding:6px;">ID</th>
-            <th style="padding:6px;">Username</th>
-            <th style="padding:6px;">Role</th>
-            <th style="padding:6px;">Status</th>
-            <th style="padding:6px;">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${appHealth.users
-            .map(
-              (u) => `
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-              <td style="padding:6px;">#${u.id}</td>
-              <td style="padding:6px;font-weight:700;">@${escapeHtml(u.username)}</td>
-              <td style="padding:6px;">${escapeHtml(u.role)}</td>
-              <td style="padding:6px;color:${u.status === 'active' ? '#34d399' : '#f87171'};font-weight:700;">
-                ${escapeHtml(u.status)}
-              </td>
-              <td style="padding:6px;">
-                <button class="devops-btn" style="padding:3px 8px;font-size:11px;" onclick="toggleUserSuspend(${u.id})">
-                  ${u.status === 'active' ? 'Suspend' : 'Restore'}
-                </button>
-              </td>
-            </tr>
-          `
-            )
-            .join('')}
-        </tbody>
-      </table>
-    `;
-  }
-
-  const logsEl = document.getElementById('devops-logs-terminal');
-  if (logsEl && appHealth.recentLogs) {
-    logsEl.innerHTML = appHealth.recentLogs
-      .map(
-        (l) => `
+  $('devops-logs-terminal').innerHTML = overview.recentLogs.length
+    ? overview.recentLogs.map((l) => `
         <div class="log-line">
-          <span style="color:#94a3b8;">[${new Date(l.created_at).toLocaleTimeString()}]</span>
+          <span style="color:#94a3b8;">[${escapeHtml(new Date(l.created_at).toLocaleTimeString())}]</span>
           <strong style="color:#fbbf24;">[${escapeHtml(l.event_type)}]</strong>
           <span>${escapeHtml(l.summary)}</span>
-          <span style="color:#34d399;">(${l.latency_ms}ms)</span>
-        </div>
-      `
-      )
-      .join('');
-  }
-}
-
-async function devopsSwitchUser(username) {
-  try {
-    const data = await apiRequest('/devops/switch-user', {
-      method: 'POST',
-      body: JSON.stringify({ username })
-    });
-    currentUser = data.user;
-    localStorage.setItem('reclaim_user', JSON.stringify(currentUser));
-    showToast(`⚡ DevOps Switched Active Persona to <strong>@${currentUser.username}</strong> (${currentUser.role.toUpperCase()})`);
-    await enterAppShell();
-  } catch (err) {
-    showToast(`❌ ${err.message}`);
-  }
-}
-
-async function loadScenario(mode) {
-  try {
-    const res = await apiRequest('/devops/scenario', {
-      method: 'POST',
-      body: JSON.stringify({ mode })
-    });
-    showToast(`🎬 ${res.message}`);
-    await refreshAllData();
-  } catch (err) {
-    showToast(`❌ ${err.message}`);
-  }
+        </div>`).join('')
+    : '<div class="log-line">No events yet.</div>';
 }
 
 async function toggleUserSuspend(userId) {
   try {
-    await apiRequest('/devops/toggle-user-status', {
-      method: 'POST',
-      body: JSON.stringify({ userId })
-    });
-    showToast('🔄 Updated user account status in SQLite.');
+    const res = await api(`/admin/users/${userId}/toggle-status`, { method: 'POST', body: {} });
+    showToast(res.status === 'suspended' ? 'User suspended and signed out.' : 'User restored.');
     await refreshAllData();
   } catch (err) {
-    showToast(`❌ ${err.message}`);
+    showToast(err.message, 'error');
   }
 }
 
-// ==================== 10. NOTIFICATIONS DRAWER ====================
-function toggleNotificationsDrawer(forceState) {
-  const drawer = document.getElementById('notifications-drawer');
-  const shouldOpen = typeof forceState === 'boolean' ? forceState : drawer.classList.contains('hidden');
-  drawer.classList.toggle('hidden', !shouldOpen);
+async function wipeAllData() {
+  const typed = window.prompt('This permanently deletes ALL reports, claims, matches, notifications and every account except "admin".\n\nType WIPE to confirm:');
+  if (typed === null) return;
+  if (typed.trim() !== 'WIPE') return showToast('Cancelled — you did not type WIPE.', 'error');
+  try {
+    await api('/admin/reset', { method: 'POST', body: { confirm: 'WIPE' } });
+    showToast('Database wiped. Only the admin account remains.');
+    await refreshAllData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+function toggleNotificationsDrawer(force) {
+  const drawer = $('notifications-drawer');
+  const open = typeof force === 'boolean' ? force : drawer.classList.contains('hidden');
+  drawer.classList.toggle('hidden', !open);
 }
 
 function renderNotificationsDrawer() {
-  const list = document.getElementById('notifications-list');
-  if (!list) return;
-  if (userNotifications.length === 0) {
-    list.innerHTML = `<div class="alert-box">No notifications for @${escapeHtml(currentUser?.username || '')} yet.</div>`;
+  const list = $('notifications-list');
+  if (!userNotifications.length) {
+    list.innerHTML = emptyState('You have no notifications yet.');
     return;
   }
-
-  list.innerHTML = userNotifications
-    .map(
-      (n) => `
-      <div class="notif-item ${n.is_read ? '' : 'unread'}">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px;">
-          <strong>${escapeHtml(n.type)}</strong>
-          <span>${new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-        </div>
-        <h5>${escapeHtml(n.title)}</h5>
-        <p>${escapeHtml(n.message)}</p>
+  list.innerHTML = userNotifications.map((n) => `
+    <div class="notif-item ${n.is_read ? '' : 'unread'}">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px;">
+        <strong>${escapeHtml(n.type)}</strong>
+        <span>${escapeHtml(formatWhen(n.created_at))}</span>
       </div>
-    `
-    )
-    .join('');
+      <h5>${escapeHtml(n.title)}</h5>
+      <p>${escapeHtml(n.message)}</p>
+    </div>`).join('');
 }
 
 async function markAllNotificationsRead() {
-  if (!currentUser) return;
-  await apiRequest('/notifications/read-all', {
-    method: 'POST',
-    body: JSON.stringify({ username: currentUser.username })
-  });
-  await refreshAllData();
+  try {
+    await api('/notifications/read-all', { method: 'POST', body: {} });
+    await refreshAllData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
-// Helpers
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+// ---------------------------------------------------------------------------
+// One click handler for all buttons that act on a record (no inline JS with user data)
+// ---------------------------------------------------------------------------
+function handleDelegatedClick(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const id = Number(btn.dataset.id);
+  switch (btn.dataset.action) {
+    case 'claim': return openClaimModal(id, btn.dataset.lost ? Number(btn.dataset.lost) : null);
+    case 'flag': return flagReport(id);
+    case 'delete-report': return deleteOwnReport(id);
+    case 'more-proof': return openMoreProofModal(id);
+    case 'confirm-receipt': return confirmReceipt(id);
+    case 'admin-claim': return adminClaimAction(id, btn.dataset.act, btn.dataset.input);
+    case 'moderate': return moderateReport(id, btn.dataset.act);
+    case 'toggle-user': return toggleUserSuspend(id);
+    default: return undefined;
+  }
 }
-
-function escapeQuotes(str) {
-  return String(str ?? '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
-

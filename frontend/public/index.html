@@ -3,115 +3,94 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reclaim — Campus Lost &amp; Found System</title>
+  <title>Reclaim — Campus Lost &amp; Found</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
 
-  <!-- ==================== 1. UNIFIED LOGIN SCREEN (NO REGISTER PAGE) ==================== -->
+  <!-- ==================== SIGN IN / CREATE ACCOUNT ==================== -->
   <section id="login-screen" class="login-screen">
     <div class="login-container">
-      <!-- Left Branding Panel -->
       <div class="login-hero">
         <div class="brand-badge">
           <span class="brand-icon">◈</span>
-          <span>UNIVERSITY VERIFIED PLATFORM</span>
+          <span>CAMPUS LOST &amp; FOUND</span>
         </div>
         <h1 class="hero-logo-title">reclaim<span>.</span></h1>
         <p class="hero-subtitle">
-          The centralized, privacy-first Campus Lost &amp; Found platform powered by automated matching and administrator-verified ownership claims.
+          Report what you lost or found on campus. Reclaim matches reports automatically and returns items only after an administrator verifies ownership.
         </p>
 
         <div class="hero-features">
           <div class="hero-feature-item">
             <div class="feature-icon">⚡</div>
             <div>
-              <h4>&lt; 3s Automated Matching Engine</h4>
-              <p>Instantly cross-references lost and found reports across campus buildings, categories, colors, and brands.</p>
+              <h4>Automatic matching</h4>
+              <p>New reports are compared with existing ones by category, building, color, brand and keywords.</p>
             </div>
           </div>
           <div class="hero-feature-item">
             <div class="feature-icon">🔒</div>
             <div>
-              <h4>Privacy Blur &amp; Identity Protection</h4>
-              <p>Found item photos are blurred for public viewers to prevent false claims, and personal contact info is never exposed.</p>
+              <h4>Privacy first</h4>
+              <p>Photos of found items stay hidden from other students, and nobody's identity is exposed.</p>
             </div>
           </div>
           <div class="hero-feature-item">
             <div class="feature-icon">🛡️</div>
             <div>
-              <h4>Admin Verification &amp; SQLite Persistence</h4>
-              <p>Side-by-side visual proof inspection, additional proof requests, and physical handover tracking.</p>
+              <h4>Verified handover</h4>
+              <p>Every claim is checked by an administrator before the item is released.</p>
             </div>
           </div>
         </div>
-
-        <div class="hero-footer-pill">
-          <span class="status-dot"></span>
-          <span>SQLite Engine Active • Localhost Prototype</span>
-        </div>
       </div>
 
-      <!-- Right Single Login Form Panel -->
       <div class="login-card">
         <div class="login-card-header">
-          <h2>Sign In to Reclaim</h2>
-          <p>
-            Enter any username and password. <strong>If the account doesn't exist yet, Reclaim automatically creates and remembers it in SQLite.</strong>
-          </p>
+          <h2 id="login-title">Sign in to Reclaim</h2>
+          <p id="login-subtitle">Enter your username and password. New here? Type a new username and we'll help you create the account.</p>
         </div>
 
-        <form id="login-form" class="login-form">
+        <form id="login-form" class="login-form" novalidate>
           <div class="form-group">
-            <label for="login-username">Campus Username</label>
-            <input
-              type="text"
-              id="login-username"
-              placeholder="e.g. ahmed, khalid, admin, or your name"
-              required
-              autocomplete="username"
-            />
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" maxlength="20" required autocomplete="username" autocapitalize="off" spellcheck="false" />
           </div>
 
           <div class="form-group">
             <label for="login-password">Password</label>
-            <input
-              type="password"
-              id="login-password"
-              placeholder="Enter password (saved automatically)"
-              required
-              autocomplete="current-password"
-            />
+            <div class="password-field">
+              <input type="password" id="login-password" maxlength="128" required autocomplete="current-password" />
+              <button type="button" id="toggle-password" class="password-toggle" aria-label="Show password">Show</button>
+            </div>
           </div>
 
-          <div id="login-error" class="alert-box alert-error hidden"></div>
+          <div id="register-extra" class="hidden">
+            <div class="form-group">
+              <label for="login-confirm">Confirm password</label>
+              <input type="password" id="login-confirm" maxlength="128" autocomplete="new-password" />
+            </div>
+            <ul class="pw-rules" id="pw-rules">
+              <li class="pw-rule" data-rule="length"><span class="pw-rule-mark">○</span> At least 8 characters</li>
+              <li class="pw-rule" data-rule="number"><span class="pw-rule-mark">○</span> At least one number</li>
+              <li class="pw-rule" data-rule="special"><span class="pw-rule-mark">○</span> At least one special character (! @ # $ % …)</li>
+              <li class="pw-rule" data-rule="match"><span class="pw-rule-mark">○</span> Both passwords match</li>
+            </ul>
+          </div>
 
-          <button type="submit" class="btn btn-primary btn-block btn-lg">
-            Continue to Reclaim →
-          </button>
+          <div id="login-notice" class="alert-box hidden"></div>
+          <div id="login-error" class="alert-box alert-error hidden" role="alert"></div>
+
+          <button type="submit" id="login-submit" class="btn btn-primary btn-block btn-lg">Sign in</button>
+          <button type="button" id="login-back" class="btn btn-outline btn-block hidden">← Back to sign in</button>
         </form>
-
-        <div class="quick-demo-login">
-          <span class="quick-demo-label">Presentation 1-Click Fill:</span>
-          <div class="quick-demo-chips">
-            <button type="button" class="demo-chip" onclick="quickFillLogin('ahmed', '1234')">
-              🎓 <strong>ahmed</strong> (Lost Owner)
-            </button>
-            <button type="button" class="demo-chip" onclick="quickFillLogin('khalid', '1234')">
-              🔍 <strong>khalid</strong> (Finder)
-            </button>
-            <button type="button" class="demo-chip demo-chip-admin" onclick="quickFillLogin('admin', 'admin')">
-              🛡️ <strong>admin</strong> (Administrator)
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </section>
 
-  <!-- ==================== 2. MAIN APPLICATION SHELL ==================== -->
+  <!-- ==================== MAIN APPLICATION ==================== -->
   <div id="app-shell" class="app-shell hidden">
-    <!-- Top Header Navigation -->
     <header class="top-navbar">
       <div class="nav-left">
         <div class="app-logo" onclick="switchView('home')">
@@ -121,15 +100,9 @@
         </div>
 
         <nav class="main-nav">
-          <button class="nav-btn active" data-view="home" onclick="switchView('home')">
-            🏠 Home
-          </button>
-          <button class="nav-btn" data-view="browse" onclick="switchView('browse')">
-            🔍 Search &amp; Browse
-          </button>
-          <button class="nav-btn" data-view="report" onclick="switchView('report')">
-            ➕ Report Item
-          </button>
+          <button class="nav-btn active" data-view="home" onclick="switchView('home')">🏠 Home</button>
+          <button class="nav-btn" data-view="browse" onclick="switchView('browse')">🔍 Search &amp; Browse</button>
+          <button class="nav-btn" data-view="report" onclick="openReportForm('LOST')">➕ Report Item</button>
           <button class="nav-btn" data-view="claims" onclick="switchView('claims')">
             📋 Matches &amp; Claims
             <span id="nav-claims-badge" class="nav-badge hidden">0</span>
@@ -142,107 +115,89 @@
       </div>
 
       <div class="nav-right">
-        <!-- Notification Bell -->
-        <button class="icon-btn" onclick="toggleNotificationsDrawer()" title="System Notifications">
+        <button class="icon-btn" onclick="toggleNotificationsDrawer()" title="Notifications">
           🔔
           <span id="notif-unread-badge" class="notif-badge hidden">0</span>
         </button>
 
-        <!-- Current User Pill -->
         <div class="user-profile-pill">
-          <div class="user-avatar" id="header-user-avatar">A</div>
+          <div class="user-avatar" id="header-user-avatar"></div>
           <div class="user-meta">
-            <span id="header-username" class="user-name">@ahmed</span>
-            <span id="header-user-role" class="user-role-tag">Student</span>
+            <span id="header-username" class="user-name"></span>
+            <span id="header-user-role" class="user-role-tag"></span>
           </div>
         </div>
 
-        <button class="btn btn-outline btn-sm" onclick="handleLogout()">
-          Sign Out
-        </button>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()">Sign Out</button>
       </div>
     </header>
 
-    <!-- Main Content Viewport -->
     <main class="main-content">
 
-      <!-- VIEW 1: HOME DASHBOARD -->
+      <!-- HOME -->
       <section id="view-home" class="view-section">
         <div class="hero-banner">
           <div class="hero-banner-text">
-            <div class="hero-pill">✨ Main Scenario &amp; Live Campus Feed</div>
-            <h1 id="welcome-headline">Welcome back to Reclaim</h1>
+            <h1 id="welcome-headline">Welcome</h1>
             <p>
-              Lost something after a lecture or found an unattended item on campus? Report it in seconds—our automated matching engine scans complementary reports in under 3 seconds while protecting student privacy.
+              Lost something, or found something that isn't yours? Report it in under a minute. Reclaim compares it with every open report and notifies the owner if there's a match.
             </p>
             <div class="hero-actions">
-              <button class="btn btn-light-solid" onclick="openReportForm('LOST')">
-                📢 Report Lost Item
-              </button>
-              <button class="btn btn-glass" onclick="openReportForm('FOUND')">
-                📦 Report Found Item
-              </button>
-              <button class="btn btn-glass" onclick="switchView('browse')">
-                🔎 Search Campus Items
-              </button>
+              <button class="btn btn-light-solid" onclick="openReportForm('LOST')">📢 Report Lost Item</button>
+              <button class="btn btn-glass" onclick="openReportForm('FOUND')">📦 Report Found Item</button>
+              <button class="btn btn-glass" onclick="switchView('browse')">🔎 Search Campus Items</button>
             </div>
           </div>
 
           <div class="hero-stats-grid">
             <div class="stat-card">
               <span class="stat-value" id="stat-total-reports">0</span>
-              <span class="stat-label">Active Campus Reports</span>
+              <span class="stat-label">Open Reports</span>
             </div>
             <div class="stat-card">
               <span class="stat-value" id="stat-total-matches">0</span>
-              <span class="stat-label">Auto-Matches Suggested</span>
+              <span class="stat-label">Suggested Matches</span>
             </div>
             <div class="stat-card">
-              <span class="stat-value" id="stat-match-speed">1.1 ms</span>
-              <span class="stat-label">Match Engine Speed (&lt;3s NFR)</span>
+              <span class="stat-value" id="stat-match-speed">—</span>
+              <span class="stat-label">Last Match Time</span>
             </div>
             <div class="stat-card">
               <span class="stat-value" id="stat-resolved-cases">0</span>
-              <span class="stat-label">Items Verified &amp; Returned</span>
+              <span class="stat-label">Items Returned</span>
             </div>
           </div>
         </div>
 
-        <!-- Automated Suggested Matches Banner -->
         <div class="section-block">
           <div class="section-header">
             <div>
-              <h2>⚡ Automated Match Suggestions</h2>
-              <p>Real-time matches discovered by comparing Category, Building Location, Color, Brand, and Keywords.</p>
+              <h2>⚡ Suggested Matches</h2>
+              <p>Found items that look like something you reported lost.</p>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="switchView('claims')">
-              View All Matches &amp; Claims →
-            </button>
+            <button class="btn btn-outline btn-sm" onclick="switchView('claims')">View all →</button>
           </div>
           <div id="home-matches-container" class="matches-grid"></div>
         </div>
 
-        <!-- Recent Campus Reports -->
         <div class="section-block">
           <div class="section-header">
             <div>
-              <h2>📍 Recent Campus Reports</h2>
-              <p>Note: Found item photos are automatically blurred for students to prevent fraudulent claims.</p>
+              <h2>📍 Recent Reports</h2>
+              <p>Photos of found items are hidden from other students to prevent false claims.</p>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="switchView('browse')">
-              Open Search &amp; Filters →
-            </button>
+            <button class="btn btn-outline btn-sm" onclick="switchView('browse')">Search &amp; filter →</button>
           </div>
           <div id="home-reports-container" class="reports-grid"></div>
         </div>
       </section>
 
-      <!-- VIEW 2: SEARCH & BROWSE ITEMS (Use Case 3 / BPMN Fig. 3) -->
+      <!-- BROWSE -->
       <section id="view-browse" class="view-section hidden">
         <div class="page-title-bar">
           <div>
-            <h2>🔍 Search &amp; Filter Campus Listings</h2>
-            <p>Search reported Lost &amp; Found items across campus buildings. Found item photos use Privacy Blur protection.</p>
+            <h2>🔍 Search &amp; Filter</h2>
+            <p>Search every open lost and found report on campus.</p>
           </div>
           <div class="page-title-actions">
             <button class="btn btn-primary" onclick="openReportForm('LOST')">+ Report Lost</button>
@@ -250,54 +205,30 @@
           </div>
         </div>
 
-        <!-- Filter Bar -->
         <div class="filter-bar">
           <div class="filter-group filter-search">
-            <label>Keyword Search</label>
-            <input type="text" id="filter-q" placeholder="Search charger, calculator, bottle, Dell..." oninput="applySearchFilters()" />
+            <label for="filter-q">Keyword</label>
+            <input type="text" id="filter-q" placeholder="Charger, calculator, bottle, Dell…" oninput="applySearchFilters()" />
           </div>
           <div class="filter-group">
-            <label>Report Type</label>
+            <label for="filter-type">Type</label>
             <select id="filter-type" onchange="applySearchFilters()">
-              <option value="ALL">All Types (Lost &amp; Found)</option>
-              <option value="FOUND">Found Items Only</option>
-              <option value="LOST">Lost Items Only</option>
+              <option value="ALL">Lost &amp; Found</option>
+              <option value="FOUND">Found only</option>
+              <option value="LOST">Lost only</option>
             </select>
           </div>
           <div class="filter-group">
-            <label>Category</label>
-            <select id="filter-category" onchange="applySearchFilters()">
-              <option value="ALL">All Categories</option>
-              <option value="Electronics">Electronics</option>
-              <option value="ID & Cards">ID &amp; Cards</option>
-              <option value="Bottles & Accessories">Bottles &amp; Accessories</option>
-              <option value="Books & Notes">Books &amp; Notes</option>
-              <option value="Keys & Wallets">Keys &amp; Wallets</option>
-            </select>
+            <label for="filter-category">Category</label>
+            <select id="filter-category" onchange="applySearchFilters()"><option value="ALL">All categories</option></select>
           </div>
           <div class="filter-group">
-            <label>Campus Building</label>
-            <select id="filter-location" onchange="applySearchFilters()">
-              <option value="ALL">All Campus Buildings</option>
-              <option value="Engineering Building">Engineering Building</option>
-              <option value="Main Library">Main Library</option>
-              <option value="Student Center">Student Center</option>
-              <option value="Science Complex">Science Complex</option>
-              <option value="Cafeteria">Cafeteria</option>
-              <option value="Sports Hall">Sports Hall</option>
-            </select>
+            <label for="filter-location">Building</label>
+            <select id="filter-location" onchange="applySearchFilters()"><option value="ALL">All buildings</option></select>
           </div>
           <div class="filter-group">
-            <label>Color</label>
-            <select id="filter-color" onchange="applySearchFilters()">
-              <option value="ALL">All Colors</option>
-              <option value="Black">Black</option>
-              <option value="Blue">Blue</option>
-              <option value="White">White</option>
-              <option value="Silver">Silver</option>
-              <option value="Purple">Purple</option>
-              <option value="Red">Red</option>
-            </select>
+            <label for="filter-color">Color</label>
+            <select id="filter-color" onchange="applySearchFilters()"><option value="ALL">All colors</option></select>
           </div>
           <div class="filter-group filter-reset">
             <label>&nbsp;</label>
@@ -308,7 +239,7 @@
         <div id="browse-reports-container" class="reports-grid"></div>
       </section>
 
-      <!-- VIEW 3: REPORT LOST OR FOUND ITEM (Use Case 2 & 3 / BPMN Fig. 2 & 3) -->
+      <!-- REPORT -->
       <section id="view-report" class="view-section hidden">
         <div class="form-card-wrapper">
           <div class="report-type-switcher">
@@ -318,144 +249,87 @@
             </button>
             <button type="button" id="tab-btn-found" class="type-switch-btn" onclick="setReportFormType('FOUND')">
               📦 Report a Found Item
-              <span>I found an item &amp; will hand it to Admin</span>
+              <span>I found something and will hand it in</span>
             </button>
           </div>
 
           <form id="create-report-form" class="report-form">
             <input type="hidden" id="report-type-input" value="LOST" />
-
-            <div class="form-banner-info" id="report-form-banner">
-              <strong>Lost Item Report:</strong> Provide accurate details and an old photo if available. Our automated matching engine will scan existing Found reports in &lt; 3 seconds.
-            </div>
-
-            <!-- 1-Click Scenario Auto-Fill Bar for Live Presentation -->
-            <div class="preset-autofill-bar">
-              <span>⚡ Quick Presentation Auto-Fill:</span>
-              <button type="button" class="btn-chip" onclick="autofillAhmedLostCharger()">
-                Fill Ahmed's Lost Black Charger
-              </button>
-              <button type="button" class="btn-chip" onclick="autofillKhalidFoundCharger()">
-                Fill Khalid's Found Black Charger
-              </button>
-            </div>
+            <div class="form-banner-info" id="report-form-banner"></div>
 
             <div class="form-grid-2">
               <div class="form-group">
-                <label>Item Title *</label>
-                <input type="text" id="rep-title" placeholder="e.g. Black Laptop Charger (65W USB-C)" required />
+                <label for="rep-title">Item title *</label>
+                <input type="text" id="rep-title" maxlength="100" placeholder="e.g. Black laptop charger" required />
               </div>
-
               <div class="form-group">
-                <label>Category *</label>
-                <select id="rep-category" required>
-                  <option value="Electronics">Electronics</option>
-                  <option value="ID & Cards">ID &amp; Cards</option>
-                  <option value="Bottles & Accessories">Bottles &amp; Accessories</option>
-                  <option value="Books & Notes">Books &amp; Notes</option>
-                  <option value="Keys & Wallets">Keys &amp; Wallets</option>
-                </select>
+                <label for="rep-category">Category *</label>
+                <select id="rep-category" required></select>
               </div>
-
               <div class="form-group">
-                <label>Primary Color *</label>
-                <select id="rep-color" required>
-                  <option value="Black">Black</option>
-                  <option value="Blue">Blue</option>
-                  <option value="White">White</option>
-                  <option value="Silver">Silver</option>
-                  <option value="Purple">Purple</option>
-                  <option value="Red">Red</option>
-                </select>
+                <label for="rep-color">Main color *</label>
+                <select id="rep-color" required></select>
               </div>
-
               <div class="form-group">
-                <label>Brand / Make</label>
-                <input type="text" id="rep-brand" placeholder="e.g. Dell, Apple, Casio, HydroFlask" />
+                <label for="rep-brand">Brand / make</label>
+                <input type="text" id="rep-brand" maxlength="60" placeholder="e.g. Dell, Apple, Casio" />
               </div>
-
               <div class="form-group">
-                <label>Campus Building / Location *</label>
-                <select id="rep-location" required>
-                  <option value="Engineering Building">Engineering Building</option>
-                  <option value="Main Library">Main Library</option>
-                  <option value="Student Center">Student Center</option>
-                  <option value="Science Complex">Science Complex</option>
-                  <option value="Cafeteria">Cafeteria</option>
-                  <option value="Sports Hall">Sports Hall</option>
-                </select>
+                <label for="rep-location">Campus building / location *</label>
+                <select id="rep-location" required></select>
               </div>
-
               <div class="form-group">
-                <label>Date &amp; Approximate Time *</label>
-                <input type="text" id="rep-date" value="Today, 10:30 AM" required />
+                <label for="rep-date">When *</label>
+                <input type="datetime-local" id="rep-date" required />
               </div>
             </div>
 
             <div class="form-group">
-              <label>General Description *</label>
-              <textarea id="rep-description" rows="3" placeholder="Describe where and how the item was lost or found..." required></textarea>
+              <label for="rep-description">Description *</label>
+              <textarea id="rep-description" rows="3" maxlength="1000" placeholder="Where and how was it lost or found? (at least 10 characters)" required></textarea>
             </div>
 
             <div class="form-group">
-              <label>Unique Identifiers / Distinguishing Marks (Serial #, Stickers, Scratches)</label>
-              <input
-                type="text"
-                id="rep-marks"
-                placeholder="e.g. Blue velcro cable strap, Serial CN-065W-AH92 (Hidden from public on Found items)"
-              />
+              <label for="rep-marks">Distinguishing marks (serial number, stickers, scratches)</label>
+              <input type="text" id="rep-marks" maxlength="300" placeholder="Only the owner and administrators can see this on found items" />
             </div>
 
-            <!-- BPMN Fig. 2 Physical Item Handover Checkbox (Only for FOUND items) -->
             <div id="found-handover-box" class="handover-checkbox-box hidden">
               <label class="checkbox-label">
-                <input type="checkbox" id="rep-handed" checked />
-                <span>
-                  <strong>BPMN Fig. 2 Requirement:</strong> I confirm that I am handing over the physical item to the Campus Lost &amp; Found Administrator Office.
-                </span>
+                <input type="checkbox" id="rep-handed" />
+                <span>I am handing the physical item to the Campus Lost &amp; Found office.</span>
               </label>
             </div>
 
-            <!-- NFR Image Upload & Automatic <3MB Compression -->
             <div class="form-group">
-              <label>Item Photo (NFR: Auto-Compressed &le; 3.0 MB; Blurred automatically if Found Item)</label>
+              <label>Photo (optional, compressed automatically; max 3 MB)</label>
               <div class="photo-upload-zone">
                 <div class="photo-upload-controls">
-                  <input type="file" id="rep-file-input" accept="image/*" onchange="handleImageUpload(event, 'report')" />
-                  <div class="preset-photo-selector">
-                    <span>Or choose sample photo:</span>
-                    <button type="button" class="btn-chip" onclick="selectPresetPhoto('charger_lost', 'report')">🔌 Charger (Owner)</button>
-                    <button type="button" class="btn-chip" onclick="selectPresetPhoto('charger_found', 'report')">🔌 Charger (Found)</button>
-                    <button type="button" class="btn-chip" onclick="selectPresetPhoto('hydroflask', 'report')">🧴 Water Bottle</button>
-                    <button type="button" class="btn-chip" onclick="selectPresetPhoto('calculator', 'report')">🧮 Calculator</button>
-                    <button type="button" class="btn-chip" onclick="selectPresetPhoto('airpods', 'report')">🎧 AirPods</button>
-                  </div>
-                  <div id="compression-telemetry" class="compression-badge">
-                    ✅ NFR Image Compression Ready: <strong>192.4 KB</strong> / 3,072 KB max limit
-                  </div>
+                  <input type="file" id="rep-file-input" accept="image/jpeg,image/png,image/webp" onchange="handleImageUpload(event, 'report')" />
+                  <div id="compression-telemetry" class="compression-badge">No photo selected</div>
+                  <button type="button" class="btn-chip" onclick="clearPhoto('report')">Remove photo</button>
                 </div>
                 <div class="photo-preview-box">
-                  <img id="rep-photo-preview" src="" alt="Preview" />
+                  <img id="rep-photo-preview" alt="Preview" class="hidden" />
+                  <span id="rep-photo-empty" class="photo-empty">No photo</span>
                 </div>
               </div>
             </div>
 
             <div class="form-submit-row">
-              <button type="submit" class="btn btn-primary btn-lg">
-                Submit Report &amp; Run Auto-Matcher →
-              </button>
+              <button type="submit" id="report-submit" class="btn btn-primary btn-lg">Submit report →</button>
             </div>
           </form>
         </div>
       </section>
 
-      <!-- VIEW 4: MATCHES & OWNERSHIP CLAIMS (Use Case 1 / BPMN Fig. 1 & Fig. 5) -->
+      <!-- MATCHES & CLAIMS -->
       <section id="view-claims" class="view-section hidden">
         <div class="section-block">
           <div class="section-header">
             <div>
-              <h2>⚡ Suggested Matches for Your Reports</h2>
-              <p>Click "Submit Ownership Claim" on any matching Found item to provide proof of ownership to the Administrator.</p>
+              <h2>⚡ Suggested Matches</h2>
+              <p>Submit an ownership claim on any found item that matches something you lost.</p>
             </div>
           </div>
           <div id="claims-view-matches" class="matches-grid"></div>
@@ -464,34 +338,32 @@
         <div class="section-block">
           <div class="section-header">
             <div>
-              <h2>📋 Ownership Claims &amp; Verification Status</h2>
-              <p>Track your claims from <strong>Pending</strong> &rarr; <strong>More Proof Requested / Approved</strong> &rarr; <strong>Confirm Item Receipt</strong> &rarr; <strong>Returned &amp; Resolved</strong>.</p>
+              <h2>📋 My Ownership Claims</h2>
+              <p>Pending → (More proof requested) → Approved → Confirm receipt → Returned.</p>
             </div>
           </div>
           <div id="student-claims-container" class="claims-list"></div>
         </div>
       </section>
 
-      <!-- VIEW 5: DEDICATED ADMIN WORKSPACE (When logged in as Admin) -->
+      <!-- ADMIN WORKSPACE -->
       <section id="view-admin" class="view-section hidden">
         <div class="admin-workspace-banner">
           <div>
-            <span class="admin-pill">🛡️ ROLE-BASED ACCESS CONTROL: ADMINISTRATOR</span>
-            <h2>Lost &amp; Found Administrator Command Center</h2>
-            <p>Review pending ownership claims side-by-side with unblurred photos, request more proof, log physical handovers (BPMN Fig. 5), and moderate flagged reports (BPMN Fig. 4).</p>
+            <span class="admin-pill">🛡️ ADMINISTRATOR</span>
+            <h2>Administrator Workspace</h2>
+            <p>Review ownership claims side by side with the unblurred found item, request more proof, complete handovers and moderate flagged reports.</p>
           </div>
-          <button class="btn btn-devops-trigger" onclick="toggleDevOpsModal(true)">
-            ⚡ Open Full Dark-Blue DevOps Overlay
-          </button>
+          <button class="btn btn-devops-trigger" onclick="toggleDevOpsModal(true)">⚡ Open DevOps Console</button>
         </div>
 
         <div class="section-block">
-          <h3>1. Pending &amp; Active Ownership Claims (BPMN Fig. 1 &amp; Fig. 5)</h3>
+          <h3>1. Ownership claims</h3>
           <div id="admin-page-claims-list" class="claims-list"></div>
         </div>
 
         <div class="section-block">
-          <h3>2. Flagged Suspicious / Duplicate Reports (BPMN Fig. 4)</h3>
+          <h3>2. Flagged reports</h3>
           <div id="admin-page-suspicious-list" class="reports-grid"></div>
         </div>
       </section>
@@ -499,13 +371,13 @@
     </main>
   </div>
 
-  <!-- ==================== 3. SUBMIT OWNERSHIP CLAIM MODAL ==================== -->
+  <!-- ==================== CLAIM MODAL ==================== -->
   <div id="claim-modal" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
         <div>
-          <h3>🛡️ Submit Ownership Claim (Use Case 1)</h3>
-          <p id="claim-modal-subtitle">Provide proof of ownership so the Administrator can verify and release your item.</p>
+          <h3>🛡️ Submit ownership claim</h3>
+          <p id="claim-modal-subtitle"></p>
         </div>
         <button class="close-btn" onclick="closeClaimModal()">✕</button>
       </div>
@@ -514,58 +386,40 @@
         <input type="hidden" id="claim-found-report-id" />
         <input type="hidden" id="claim-lost-report-id" />
 
-        <div class="preset-autofill-bar">
-          <span>⚡ Presentation Helper:</span>
-          <button type="button" class="btn-chip" onclick="autofillAhmedClaimProof()">
-            Auto-Fill Ahmed's Charger Proof (Serial # + Blue Strap Photo)
-          </button>
+        <div class="form-group">
+          <label for="claim-proof-text">Proof of ownership *</label>
+          <textarea id="claim-proof-text" rows="4" maxlength="2000" required
+            placeholder="Describe things only the owner would know: serial number, stickers, scratches, contents, purchase receipt… (at least 10 characters)"></textarea>
         </div>
 
         <div class="form-group">
-          <label>Proof of Ownership Description (Serial Number, Receipts, Distinguishing Marks) *</label>
-          <textarea
-            id="claim-proof-text"
-            rows="4"
-            placeholder="Describe unique identifiers that prove this item belongs to you (e.g. Serial number CN-065W-AH92, blue velcro strap, receipt details)..."
-            required
-          ></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>Upload Visual Proof Photo (Receipt, Old Photo, or Serial Tag)</label>
+          <label>Photo proof (receipt, old photo, serial tag) — optional</label>
           <div class="photo-upload-zone compact">
             <div class="photo-upload-controls">
-              <input type="file" accept="image/*" onchange="handleImageUpload(event, 'claim')" />
-              <div class="preset-photo-selector">
-                <button type="button" class="btn-chip" onclick="selectPresetPhoto('charger_proof', 'claim')">
-                  📷 Use Ahmed's Serial # Proof Photo
-                </button>
-                <button type="button" class="btn-chip" onclick="selectPresetPhoto('charger_lost', 'claim')">
-                  📷 Use Original Charger Photo
-                </button>
-              </div>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onchange="handleImageUpload(event, 'claim')" />
             </div>
             <div class="photo-preview-box small">
-              <img id="claim-photo-preview" src="" alt="Proof Preview" />
+              <img id="claim-photo-preview" alt="Proof preview" class="hidden" />
+              <span id="claim-photo-empty" class="photo-empty">No photo</span>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeClaimModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Submit Claim (Status &rarr; Pending)</button>
+          <button type="submit" class="btn btn-primary">Submit claim</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== 4. SUBMIT ADDITIONAL PROOF MODAL (BPMN Fig. 1 Loop) ==================== -->
+  <!-- ==================== MORE PROOF MODAL ==================== -->
   <div id="more-proof-modal" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
         <div>
-          <h3>🔎 Provide Additional Proof (BPMN Fig. 1)</h3>
-          <p>The Administrator requested additional proof before approving your ownership claim.</p>
+          <h3>🔎 Provide additional proof</h3>
+          <p>The administrator needs more information before approving your claim.</p>
         </div>
         <button class="close-btn" onclick="closeMoreProofModal()">✕</button>
       </div>
@@ -574,29 +428,36 @@
         <div id="more-proof-admin-prompt" class="alert-box alert-warn"></div>
 
         <div class="form-group">
-          <label>Additional Proof Details / Serial Confirmation *</label>
-          <textarea
-            id="more-proof-text"
-            rows="3"
-            placeholder="Enter the additional details requested by the Administrator..."
-            required
-          >Here is the exact purchase invoice #INV-99281 and close-up photo of the serial tag CN-065W-AH92 on the adapter brick.</textarea>
+          <label for="more-proof-text">Additional details *</label>
+          <textarea id="more-proof-text" rows="3" maxlength="2000" required placeholder="Answer the administrator's request…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Photo (optional)</label>
+          <div class="photo-upload-zone compact">
+            <div class="photo-upload-controls">
+              <input type="file" accept="image/jpeg,image/png,image/webp" onchange="handleImageUpload(event, 'more')" />
+            </div>
+            <div class="photo-preview-box small">
+              <img id="more-proof-photo-preview" alt="Preview" class="hidden" />
+              <span id="more-proof-photo-empty" class="photo-empty">No photo</span>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeMoreProofModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Resubmit Proof to Administrator →</button>
+          <button type="submit" class="btn btn-primary">Send to administrator</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== 5. NOTIFICATIONS SLIDE-OVER DRAWER ==================== -->
+  <!-- ==================== NOTIFICATIONS ==================== -->
   <div id="notifications-drawer" class="notif-drawer hidden">
     <div class="notif-drawer-header">
       <div>
-        <h3>🔔 System Notifications</h3>
-        <span class="notif-sub">Privacy-protected real-time alerts</span>
+        <h3>🔔 Notifications</h3>
       </div>
       <div class="notif-header-actions">
         <button class="btn-link" onclick="markAllNotificationsRead()">Mark all read</button>
@@ -606,110 +467,83 @@
     <div id="notifications-list" class="notif-drawer-body"></div>
   </div>
 
-  <!-- ==================== 6. FLOATING BOTTOM-RIGHT DEVOPS / ADMIN BUTTON ==================== -->
-  <button id="devops-floating-btn" class="devops-fab" onclick="toggleDevOpsModal()">
+  <!-- ==================== DEVOPS (ADMIN ONLY) ==================== -->
+  <button id="devops-floating-btn" class="devops-fab hidden" onclick="toggleDevOpsModal()">
     <span class="devops-fab-pulse"></span>
     <span class="devops-fab-icon">⚡</span>
     <div class="devops-fab-text">
-      <strong>DevOps / Admin</strong>
-      <span>Control Panel</span>
+      <strong>DevOps</strong>
+      <span>Admin console</span>
     </div>
-    <span id="devops-fab-badge" class="devops-fab-badge">1</span>
+    <span id="devops-fab-badge" class="devops-fab-badge">0</span>
   </button>
 
-  <!-- ==================== 7. COOL DARK-BLUE TINTED DEVOPS & ADMIN CONSOLE ==================== -->
   <div id="devops-overlay" class="devops-overlay hidden">
     <div class="devops-console">
-      <!-- Console Top Header -->
       <div class="devops-header">
         <div class="devops-title-group">
-          <span class="devops-chip">DARK-BLUE DEVOPS &amp; ADMIN ENGINE</span>
-          <h2>⚡ Reclaim DevOps &amp; Administrator Console</h2>
-          <p>Inspect SQLite state, switch active user personas in 1 click, verify claims (request more proof / approve / mark returned), and moderate reports.</p>
+          <span class="devops-chip">ADMIN ONLY</span>
+          <h2>⚡ DevOps &amp; Administrator Console</h2>
+          <p>Review claims, moderate reports, inspect users and system logs, and manage the database.</p>
         </div>
-        <button class="devops-close-btn" onclick="toggleDevOpsModal(false)">✕ Close Console</button>
+        <button class="devops-close-btn" onclick="toggleDevOpsModal(false)">✕ Close</button>
       </div>
 
-      <!-- Quick Bar: 1-Click Persona Switcher + Scenario Seeder -->
-      <div class="devops-quickbar">
-        <div class="devops-quick-group">
-          <span class="quick-title">👤 1-Click Session Switcher:</span>
-          <div id="devops-user-switcher" class="devops-user-pills"></div>
-        </div>
-
-        <div class="devops-quick-group">
-          <span class="quick-title">🎬 Presentation Scenario State:</span>
-          <div class="devops-scenario-btns">
-            <button class="devops-btn devops-btn-cyan" onclick="loadScenario('full_demo')">
-              ★ Full Demo (Match + Pending Claim + Flagged)
-            </button>
-            <button class="devops-btn" onclick="loadScenario('matched_stage')">
-              ⚡ Ahmed &amp; Khalid Matched (Before Claim)
-            </button>
-            <button class="devops-btn" onclick="loadScenario('clean_stage')">
-              🧹 Clean Slate (Live Report Demo)
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Console Navigation Tabs -->
       <div class="devops-tabs">
         <button class="devops-tab active" data-dtab="claims" onclick="switchDevOpsTab('claims')">
-          🛡️ Review Ownership Claims &amp; Handover (BPMN Fig. 1 &amp; 5)
+          🛡️ Ownership claims
           <span id="dtab-claims-count" class="dtab-badge">0</span>
         </button>
         <button class="devops-tab" data-dtab="moderation" onclick="switchDevOpsTab('moderation')">
-          🚨 Suspicious / Duplicate Reports (BPMN Fig. 4)
+          🚨 Flagged reports
           <span id="dtab-mod-count" class="dtab-badge">0</span>
         </button>
         <button class="devops-tab" data-dtab="telemetry" onclick="switchDevOpsTab('telemetry')">
-          📊 SQLite DB &amp; NFR Telemetry Logs
+          📊 System &amp; database
         </button>
       </div>
 
-      <!-- Console Body -->
       <div class="devops-body">
-        <!-- DEVOPS TAB 1: CLAIMS & HANDOVER -->
         <div id="dpanel-claims" class="devops-panel">
           <div id="devops-claims-container" class="devops-claims-grid"></div>
         </div>
 
-        <!-- DEVOPS TAB 2: SUSPICIOUS REPORT MODERATION (BPMN Fig. 4) -->
         <div id="dpanel-moderation" class="devops-panel hidden">
           <div class="devops-panel-intro">
-            <strong>BPMN Figure 4 Workflow:</strong> Select a flagged/suspicious report and apply one of the three Review Decisions:
-            <em>(1) Valid &rarr; Dismiss Review Flag</em>, <em>(2) Modify &rarr; Update or Delete Report</em>, or <em>(3) Violates &rarr; Suspend User</em>. Each action sends an Admin Notice to the student.
+            For each flagged report choose: <em>Dismiss flag</em> (report is valid), <em>Delete report</em>, or <em>Suspend user</em>. The owner is notified.
           </div>
           <div id="devops-moderation-container" class="devops-mod-grid"></div>
         </div>
 
-        <!-- DEVOPS TAB 3: SQLITE & NFR TELEMETRY -->
         <div id="dpanel-telemetry" class="devops-panel hidden">
           <div class="devops-telemetry-grid">
             <div class="telemetry-card">
-              <h4>Non-Functional Requirements (NFR) Live Status</h4>
+              <h4>Status</h4>
               <ul class="nfr-status-list" id="devops-nfr-list"></ul>
             </div>
             <div class="telemetry-card">
-              <h4>SQLite Accounts (`users` table in `reclaim.db`)</h4>
+              <h4>Accounts</h4>
               <div id="devops-users-table-wrap"></div>
             </div>
           </div>
 
           <div class="telemetry-card mt-16">
-            <h4>Live SQLite &amp; Matching Engine Event Log (`system_logs`)</h4>
+            <h4>Event log</h4>
             <div id="devops-logs-terminal" class="devops-terminal"></div>
+          </div>
+
+          <div class="telemetry-card mt-16 danger-zone">
+            <h4>Danger zone</h4>
+            <p>Permanently deletes every report, match, claim, notification, log entry and every account except <strong>admin</strong>.</p>
+            <button id="devops-wipe-btn" class="btn btn-danger" onclick="wipeAllData()">🗑️ Wipe all data</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Toast Notification Popup -->
   <div id="toast-container" class="toast-container"></div>
 
   <script src="/app.js"></script>
 </body>
 </html>
-
