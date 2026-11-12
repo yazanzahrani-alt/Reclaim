@@ -299,6 +299,8 @@ async function enterAppShell() {
   updateUserHeader();
   await refreshAllData();
 
+  if (!currentUser) return;
+
   const isAdmin = currentUser.role === 'admin';
   $('devops-floating-btn').classList.toggle('hidden', !isAdmin);
   if (isAdmin) {
@@ -311,8 +313,9 @@ async function enterAppShell() {
 }
 
 function updateUserHeader() {
+  if (!currentUser) return;
   const isAdmin = currentUser.role === 'admin';
-  $('header-user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
+  $('header-user-avatar').textContent = (currentUser.username || 'U').charAt(0).toUpperCase();
   $('header-username').textContent = `@${currentUser.username}`;
   $('header-user-role').textContent = isAdmin ? '🛡️ Administrator' : '🎓 Student';
   $('nav-admin-tab').classList.toggle('hidden', !isAdmin);
@@ -334,11 +337,12 @@ async function refreshAllData() {
       api('/notifications'),
       isAdmin ? api('/admin/overview') : Promise.resolve(null)
     ]);
+    if (!currentUser) return;
     stats = statsRes;
-    allReports = reportsRes.reports;
-    allMatches = matchesRes.matches;
-    allClaims = claimsRes.claims;
-    userNotifications = notifsRes.notifications;
+    allReports = (reportsRes && reportsRes.reports) || [];
+    allMatches = (matchesRes && matchesRes.matches) || [];
+    allClaims = (claimsRes && claimsRes.claims) || [];
+    userNotifications = (notifsRes && notifsRes.notifications) || [];
     overview = overviewRes;
 
     renderStatsAndBadges();
@@ -354,7 +358,7 @@ async function refreshAllData() {
 }
 
 function renderStatsAndBadges() {
-  if (!stats) return;
+  if (!stats || !currentUser) return;
   $('stat-total-reports').textContent = stats.counts.reports;
   $('stat-total-matches').textContent = stats.counts.matches;
   $('stat-match-speed').textContent = stats.lastMatchLatencyMs === null ? '—' : `${stats.lastMatchLatencyMs} ms`;
@@ -483,6 +487,7 @@ function buildReportCardHtml(r) {
 }
 
 function renderHomeView() {
+  if (!currentUser) return;
   const isAdmin = currentUser.role === 'admin';
   $('home-matches-container').innerHTML = allMatches.length
     ? allMatches.slice(0, 4).map(buildMatchCardHtml).join('')
@@ -700,6 +705,7 @@ function claimPillClass(status) {
 }
 
 function renderClaimsAndMatchesView() {
+  if (!currentUser) return;
   $('claims-view-matches').innerHTML = allMatches.length
     ? allMatches.map(buildMatchCardHtml).join('')
     : emptyState('No matches right now.');
@@ -936,7 +942,7 @@ function buildModerationCard(r, dark) {
 }
 
 function renderAdminWorkspaceView() {
-  if (currentUser.role !== 'admin') return;
+  if (!currentUser || currentUser.role !== 'admin') return;
   const keepFocus = (id) => { const el = document.activeElement; return el && el.tagName === 'INPUT' && $(id).contains(el); };
 
   if (!keepFocus('admin-page-claims-list')) {

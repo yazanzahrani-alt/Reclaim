@@ -3,6 +3,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 const path = require('node:path');
+const os = require('node:os');
 const { openDatabase } = require('./db_adapter.js');
 
 // ---------------------------------------------------------------------------
@@ -10,10 +11,11 @@ const { openDatabase } = require('./db_adapter.js');
 // ---------------------------------------------------------------------------
 const PORT = Number(process.env.PORT) || 5000;
 const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
-// Serverless filesystems are read-only/ephemeral, so the DB cannot persist there.
-const DB_PATH = process.env.RECLAIM_DB || (IS_SERVERLESS ? ':memory:' : path.join(__dirname, 'reclaim.db'));
+// On serverless, store in os.tmpdir() so warm instances reuse the SQLite file.
+const DB_PATH = process.env.RECLAIM_DB || (IS_SERVERLESS ? path.join(os.tmpdir(), 'reclaim.db') : path.join(__dirname, 'reclaim.db'));
 const SCHEMA_VERSION = 2;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const JWT_SECRET = process.env.SESSION_SECRET || 'reclaim-secure-session-secret-2026-safe-key';
 const MAX_BODY_BYTES = 6 * 1024 * 1024;
 const MAX_PHOTO_KB = 3072; // 3 MB limit for item photos
 const MAX_THUMB_KB = 40;
@@ -305,30 +307,98 @@ function notifyAdmins(type, title, message, reportId = null, claimId = null) {
 }
 
 // ---------------------------------------------------------------------------
-// Sessions
+// Sessions (Stateless cryptographically signed tokens + SQLite fallback)
 // ---------------------------------------------------------------------------
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
-function createSession(userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(nowIso());
-  db.prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .run(sha256(token), userId, nowIso(), expiresAt);
+function signToken(payload) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${sig}`;
+}
+
+function verifyToken(token) {
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [header, body, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  if (sig.length !== expectedSig.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (payload.exp && Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function createSession(userOrId) {
+  let user = typeof userOrId === 'object' && userOrId !== null
+    ? userOrId
+    : db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(userOrId);
+  if (!user) user = { id: Number(userOrId) || 1, username: 'user', role: 'student' };
+
+  const expiresMs = Date.now() + SESSION_TTL_MS;
+  const expiresAt = new Date(expiresMs).toISOString();
+  const token = signToken({ id: user.id, username: user.username, role: user.role, exp: expiresMs });
+
+  try {
+    db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(nowIso());
+    db.prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+      .run(sha256(token), user.id, nowIso(), expiresAt);
+  } catch {
+    // If DB is locked or read-only, stateless signed token still operates seamlessly
+  }
   return { token, expiresAt };
 }
 
 function authenticate(req) {
   const header = req.headers.authorization || '';
-  const match = /^Bearer ([a-f0-9]{64})$/.exec(header);
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
   if (!match) return null;
-  const row = db.prepare(`
-    SELECT u.id, u.username, u.role, u.status, s.token_hash
-    FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token_hash = ? AND s.expires_at > ?
-  `).get(sha256(match[1]), nowIso());
-  if (!row || row.status !== 'active') return null;
-  return { id: row.id, username: row.username, role: row.role, status: row.status, tokenHash: row.token_hash };
+  const rawToken = match[1].trim();
+
+  // 1. Verify stateless signed token (works across serverless instances)
+  const payload = verifyToken(rawToken);
+  if (payload && payload.id && payload.username) {
+    let user = null;
+    try {
+      user = db.prepare('SELECT id, username, role, status FROM users WHERE id = ?').get(payload.id);
+      if (!user) {
+        db.prepare(`
+          INSERT OR IGNORE INTO users (id, username, password_hash, role, status, created_at)
+          VALUES (?, ?, 'SIGNED_SESSION', ?, 'active', ?)
+        `).run(payload.id, payload.username, payload.role || 'student', nowIso());
+        user = db.prepare('SELECT id, username, role, status FROM users WHERE id = ?').get(payload.id);
+      }
+    } catch {
+      // In case of transient DB concurrency
+    }
+    if (user && user.status === 'suspended') return null;
+    return {
+      id: payload.id,
+      username: payload.username,
+      role: payload.role || 'student',
+      status: (user && user.status) || 'active',
+      tokenHash: sha256(rawToken)
+    };
+  }
+
+  // 2. Fallback for raw 64-hex tokens (e.g. test fixtures)
+  if (/^[a-f0-9]{64}$/.test(rawToken)) {
+    const row = db.prepare(`
+      SELECT u.id, u.username, u.role, u.status, s.token_hash
+      FROM sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.token_hash = ? AND s.expires_at > ?
+    `).get(sha256(rawToken), nowIso());
+    if (!row || row.status !== 'active') return null;
+    return { id: row.id, username: row.username, role: row.role, status: row.status, tokenHash: row.token_hash };
+  }
+
+  return null;
 }
 
 const publicUser = (u) => ({ id: u.id, username: u.username, display_name: u.username, role: u.role, status: u.status });
@@ -468,8 +538,10 @@ route('GET', '/api/meta', 'none', () => ({
 
 // ---- Authentication ----
 function issueSession(user, status = 200, extra = {}) {
-  db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(nowIso(), user.id);
-  const session = createSession(user.id);
+  try {
+    db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(nowIso(), user.id);
+  } catch {}
+  const session = createSession(user);
   return { status, body: { token: session.token, expiresAt: session.expiresAt, user: publicUser(user), ...extra } };
 }
 

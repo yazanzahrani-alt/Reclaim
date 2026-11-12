@@ -7,7 +7,11 @@ const { DatabaseSync } = require('node:sqlite');
 function openDatabase(dbPath) {
   const db = new DatabaseSync(dbPath);
   if (dbPath !== ':memory:') {
-    db.exec('PRAGMA journal_mode = WAL;');
+    try {
+      db.exec('PRAGMA journal_mode = WAL;');
+    } catch {
+      db.exec('PRAGMA journal_mode = MEMORY;');
+    }
   }
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec('PRAGMA busy_timeout = 5000;');
