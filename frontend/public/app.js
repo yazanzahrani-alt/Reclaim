@@ -122,6 +122,7 @@ const I18N = {
     roleStudent: '🎓 Student',
     roleAdmin: '🛡️ Administrator',
     welcomeHeadline: (u) => `Welcome, ${u}`,
+    homeCampusPill: '🎓 Campus Lost & Found System',
     homeSubtitle: "Lost something, or found something that isn't yours? Report it in under a minute. Reclaim compares it with every open report and notifies the owner if there's a match.",
     btnReportLost: '📢 Report Lost Item',
     btnReportFound: '📦 Report Found Item',
@@ -229,6 +230,7 @@ const I18N = {
     roleStudent: '🎓 طالب',
     roleAdmin: '🛡️ مسؤول النظام',
     welcomeHeadline: (u) => `أهلاً بك، ${u}`,
+    homeCampusPill: '🎓 نظام المفقودات والمعثورات الجامعي',
     homeSubtitle: 'أضعت مقتنى، أو عثرت على ما ليس لك؟ أبلغ عنه الآن. يتولى النظام مطابقة البلاغات وإشعار المالك فور وجود تطابق.',
     btnReportLost: '📢 الإبلاغ عن مفقود',
     btnReportFound: '📦 الإبلاغ عن معثور عليه',
@@ -327,6 +329,22 @@ function toggleTheme() {
   setTheme(currentTheme === 'dark' ? 'light' : 'dark');
 }
 
+let isTogglingLang = false;
+function toggleLanguage(e) {
+  if (e && typeof e.stopPropagation === 'function') {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  if (isTogglingLang) return;
+  isTogglingLang = true;
+  try {
+    const nextLang = currentLang === 'ar' ? 'en' : 'ar';
+    setLanguage(nextLang);
+  } finally {
+    setTimeout(() => { isTogglingLang = false; }, 200);
+  }
+}
+
 function setLanguage(lang) {
   currentLang = lang;
   localStorage.setItem('reclaim_lang', lang);
@@ -339,31 +357,36 @@ function setLanguage(lang) {
   if ($('home-lang-btn')) $('home-lang-btn').textContent = langText;
 
   setTheme(currentTheme);
-  updateStaticI18n();
 
-  if (meta && meta.categories && meta.categories.length) {
-    fillSelect('filter-category', meta.categories, t('filterCategoryAll'), CATEGORY_MAP);
-    fillSelect('filter-location', meta.locations, t('filterLocationAll'), LOCATION_MAP);
-    fillSelect('filter-color', meta.colors, t('filterColorAll'), COLOR_MAP);
-    fillSelect('rep-category', meta.categories, '', CATEGORY_MAP);
-    fillSelect('rep-color', meta.colors, '', COLOR_MAP);
-    fillSelect('rep-location', meta.locations, '', LOCATION_MAP);
+  try {
+    updateStaticI18n();
+  } catch (err) {
+    console.warn('updateStaticI18n error:', err);
+  }
+
+  try {
+    if (meta && meta.categories && meta.categories.length) {
+      fillSelect('filter-category', meta.categories, t('filterCategoryAll'), CATEGORY_MAP);
+      fillSelect('filter-location', meta.locations, t('filterLocationAll'), LOCATION_MAP);
+      fillSelect('filter-color', meta.colors, t('filterColorAll'), COLOR_MAP);
+      fillSelect('rep-category', meta.categories, '', CATEGORY_MAP);
+      fillSelect('rep-color', meta.colors, '', COLOR_MAP);
+      fillSelect('rep-location', meta.locations, '', LOCATION_MAP);
+    }
+  } catch (err) {
+    console.warn('fillSelect error:', err);
   }
 
   if (currentUser) {
-    updateUserHeader();
-    renderStatsAndBadges();
-    renderHomeView();
-    applySearchFilters();
-    renderClaimsAndMatchesView();
-    renderAdminWorkspaceView();
-    renderNotificationsDrawer();
-    renderDevOpsConsole();
+    try { updateUserHeader(); } catch (e) { console.warn(e); }
+    try { renderStatsAndBadges(); } catch (e) { console.warn(e); }
+    try { renderHomeView(); } catch (e) { console.warn(e); }
+    try { applySearchFilters(); } catch (e) { console.warn(e); }
+    try { renderClaimsAndMatchesView(); } catch (e) { console.warn(e); }
+    try { renderAdminWorkspaceView(); } catch (e) { console.warn(e); }
+    try { renderNotificationsDrawer(); } catch (e) { console.warn(e); }
+    try { renderDevOpsConsole(); } catch (e) { console.warn(e); }
   }
-}
-
-function toggleLanguage() {
-  setLanguage(currentLang === 'ar' ? 'en' : 'ar');
 }
 
 function updateStaticI18n() {
@@ -413,7 +436,8 @@ function updateStaticI18n() {
   if (signOutBtn) signOutBtn.textContent = t('signOut');
 
   // Home Hero Banner
-  const homeP = document.querySelector('.hero-banner-text p');
+  if ($('home-campus-pill')) $('home-campus-pill').textContent = t('homeCampusPill');
+  const homeP = $('home-subtitle') || document.querySelector('.hero-banner-text p');
   if (homeP) homeP.textContent = t('homeSubtitle');
   if ($('home-report-lost-btn')) $('home-report-lost-btn').textContent = t('btnReportLost');
   if ($('home-report-found-btn')) $('home-report-found-btn').textContent = t('btnReportFound');
