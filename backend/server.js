@@ -140,11 +140,8 @@ const failures = new Map(); // key -> { count, firstAt, lockedUntil }
 const LOGIN_RULES = { user: { max: 5, windowMs: 15 * 60 * 1000, lockMs: 5 * 60 * 1000 }, ip: { max: 25, windowMs: 15 * 60 * 1000, lockMs: 5 * 60 * 1000 } };
 
 function assertNotLocked(key) {
-  const entry = failures.get(key);
-  if (entry && entry.lockedUntil && entry.lockedUntil > Date.now()) {
-    const seconds = Math.ceil((entry.lockedUntil - Date.now()) / 1000);
-    throw new HttpError(429, `Too many failed attempts. Try again in ${seconds} seconds.`, { code: 'RATE_LIMITED', retryAfter: seconds });
-  }
+  // Lockout disabled per user instruction (no "Too many failed attempts" lockout)
+  return;
 }
 
 function recordFailure(key, rule) {

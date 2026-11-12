@@ -191,10 +191,10 @@ async function main() {
     r = await api('POST', '/auth/login', { body: { username: 'spammer', password: 'Spam-pass1!' } });
     check('suspended user cannot log in', r.status === 403);
 
-    console.log('\n[Brute force protection]');
+    console.log('\n[Lockout disabled verification]');
     for (let i = 0; i < 5; i += 1) await api('POST', '/auth/login', { body: { username: 'khalid', password: 'bad-guess' + i } });
     r = await api('POST', '/auth/login', { body: { username: 'khalid', password: 'Khalid-pw9' } });
-    check('account locks after 5 wrong passwords (even with the right one)', r.status === 429, `got ${r.status}`);
+    check('user is not locked out after wrong attempts (lockout disabled)', r.status === 200, `got ${r.status}`);
 
     console.log('\n[Input hardening]');
     r = await api('POST', '/auth/login', { raw: '{not json' });

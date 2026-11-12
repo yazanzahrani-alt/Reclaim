@@ -336,6 +336,7 @@ function setLanguage(lang) {
   const langText = currentLang === 'ar' ? '🌐 English' : '🌐 العربية';
   if ($('login-lang-btn')) $('login-lang-btn').textContent = langText;
   if ($('nav-lang-btn')) $('nav-lang-btn').textContent = langText;
+  if ($('home-lang-btn')) $('home-lang-btn').textContent = langText;
 
   setTheme(currentTheme);
   updateStaticI18n();
@@ -414,12 +415,10 @@ function updateStaticI18n() {
   // Home Hero Banner
   const homeP = document.querySelector('.hero-banner-text p');
   if (homeP) homeP.textContent = t('homeSubtitle');
-  const heroActions = document.querySelectorAll('.hero-actions button');
-  if (heroActions.length >= 3) {
-    heroActions[0].textContent = t('btnReportLost');
-    heroActions[1].textContent = t('btnReportFound');
-    heroActions[2].textContent = t('btnSearchCampus');
-  }
+  if ($('home-report-lost-btn')) $('home-report-lost-btn').textContent = t('btnReportLost');
+  if ($('home-report-found-btn')) $('home-report-found-btn').textContent = t('btnReportFound');
+  if ($('home-browse-btn')) $('home-browse-btn').textContent = t('btnSearchCampus');
+  if ($('home-lang-btn')) $('home-lang-btn').textContent = currentLang === 'ar' ? '🌐 English' : '🌐 العربية';
   const statLabels = document.querySelectorAll('.stat-card .stat-label');
   if (statLabels.length >= 4) {
     statLabels[0].textContent = t('statReports');
@@ -654,6 +653,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (loginLang) loginLang.addEventListener('click', toggleLanguage);
   const navLang = $('nav-lang-btn');
   if (navLang) navLang.addEventListener('click', toggleLanguage);
+  const homeLang = $('home-lang-btn');
+  if (homeLang) homeLang.addEventListener('click', toggleLanguage);
 
   setTheme(currentTheme);
   setLanguage(currentLang);

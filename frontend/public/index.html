@@ -151,9 +151,10 @@
               Lost something, or found something that isn't yours? Report it in under a minute. Reclaim compares it with every open report and notifies the owner if there's a match.
             </p>
             <div class="hero-actions">
-              <button class="btn btn-light-solid" onclick="openReportForm('LOST')">📢 Report Lost Item</button>
-              <button class="btn btn-glass" onclick="openReportForm('FOUND')">📦 Report Found Item</button>
-              <button class="btn btn-glass" onclick="switchView('browse')">🔎 Search Campus Items</button>
+              <button id="home-report-lost-btn" class="btn btn-light-solid" onclick="openReportForm('LOST')">📢 Report Lost Item</button>
+              <button id="home-report-found-btn" class="btn btn-glass" onclick="openReportForm('FOUND')">📦 Report Found Item</button>
+              <button id="home-browse-btn" class="btn btn-glass" onclick="switchView('browse')">🔎 Search Campus Items</button>
+              <button id="home-lang-btn" class="btn btn-glass lang-toggle-btn" type="button" onclick="toggleLanguage()" title="تبديل اللغة / Switch language">🌐 العربية</button>
             </div>
           </div>
 
