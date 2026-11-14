@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Al-Baha University Emblem">
+  <defs>
+    <linearGradient id="bu-green" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="bu-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#facc15" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+  </defs>
+  <!-- Outer Shield / Crest -->
+  <circle cx="60" cy="60" r="56" fill="url(#bu-green)" stroke="url(#bu-gold)" stroke-width="4" />
+  <circle cx="60" cy="60" r="49" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.5" />
+
+  <!-- Al-Baha Mountains & Terraces Silhouette -->
+  <path d="M22 72 L42 46 L56 62 L72 40 L98 72 Z" fill="rgba(255,255,255,0.18)" />
+  <path d="M26 72 L42 52 L54 65 L72 45 L94 72 Z" fill="none" stroke="#fde047" stroke-width="2" stroke-linejoin="round" />
+
+  <!-- Open Book (Knowledge) -->
+  <path d="M32 68 Q46 61 60 68 Q74 61 88 68 L88 84 Q74 77 60 84 Q46 77 32 84 Z" fill="#ffffff" />
+  <path d="M60 68 L60 84" stroke="#065f46" stroke-width="2.2" />
+  <path d="M38 73 Q48 69 55 73 M38 78 Q48 74 55 78 M65 73 Q72 69 82 73 M65 78 Q72 74 82 78" stroke="#047857" stroke-width="1.5" fill="none" stroke-linecap="round" />
+
+  <!-- Academic Star / Beacon -->
+  <polygon points="60,21 63,29 71,29 65,34 67,42 60,37 53,42 55,34 49,29 57,29" fill="url(#bu-gold)" />
+
+  <!-- Top & Bottom University Labels -->
+  <text x="60" y="99" text-anchor="middle" font-family="Segoe UI, Tahoma, Arial, sans-serif" font-size="9.5" font-weight="800" fill="#fef08a" letter-spacing="0.6">AL-BAHA UNI</text>
+</svg>
+

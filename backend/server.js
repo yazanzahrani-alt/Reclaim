@@ -616,7 +616,7 @@ route('GET', '/api/stats', 'user', ({ user }) => {
       reports: count("SELECT COUNT(*) AS c FROM reports WHERE is_suspicious = 0 AND status IN ('Active', 'Claim Pending', 'Approved')"),
       matches: isAdmin
         ? count('SELECT COUNT(*) AS c FROM matches')
-        : count('SELECT COUNT(*) AS c FROM matches m JOIN reports l ON l.id = m.lost_report_id WHERE l.user_id = ?', user.id),
+        : count("SELECT COUNT(*) AS c FROM matches m JOIN reports l ON l.id = m.lost_report_id JOIN reports f ON f.id = m.found_report_id WHERE l.user_id = ? AND f.status NOT IN ('Returned', 'Resolved') AND l.status NOT IN ('Returned', 'Resolved')", user.id),
       resolved: count("SELECT COUNT(*) AS c FROM reports WHERE status IN ('Returned', 'Resolved')"),
       pendingClaims: isAdmin ? count("SELECT COUNT(*) AS c FROM claims WHERE status IN ('Pending', 'More Proof Requested')") : 0,
       flagged: isAdmin ? count('SELECT COUNT(*) AS c FROM reports WHERE is_suspicious = 1') : 0
@@ -637,7 +637,8 @@ route('GET', '/api/reports', 'user', ({ url, user }) => {
   let rows = db.prepare(`
     SELECT r.*, u.username AS owner_username
     FROM reports r JOIN users u ON u.id = r.user_id
-    WHERE ? = 1 OR r.user_id = ? OR (r.is_suspicious = 0 AND r.status NOT LIKE 'Removed%')
+    WHERE ? = 1
+       OR (r.status NOT IN ('Returned', 'Resolved') AND (r.user_id = ? OR (r.is_suspicious = 0 AND r.status NOT LIKE 'Removed%')))
     ORDER BY r.id DESC
     LIMIT 500
   `).all(isAdmin ? 1 : 0, user.id);
@@ -653,10 +654,10 @@ route('GET', '/api/reports', 'user', ({ url, user }) => {
 });
 
 route('POST', '/api/reports', 'user', ({ user, body }) => {
-  const type = cleanChoice(body.type, ['LOST', 'FOUND'], 'Report type');
-  if (user.role === 'admin' && type === 'LOST') {
-    throw new HttpError(403, 'Administrators cannot report lost items.');
+  if (user.role === 'admin') {
+    throw new HttpError(403, 'Administrators cannot report lost or found items.');
   }
+  const type = cleanChoice(body.type, ['LOST', 'FOUND'], 'Report type');
   const title = cleanText(body.title, { label: 'Title', min: 3, max: 100, required: true });
   const category = cleanChoice(body.category, CATEGORIES, 'Category');
   const color = cleanChoice(body.color, COLORS, 'Color');
@@ -818,7 +819,8 @@ route('GET', '/api/matches', 'user', ({ user }) => {
     FROM matches m
     JOIN reports l ON l.id = m.lost_report_id
     JOIN reports f ON f.id = m.found_report_id
-    WHERE ? = 1 OR l.user_id = ?
+    WHERE ? = 1
+       OR (l.user_id = ? AND f.status NOT IN ('Returned', 'Resolved') AND l.status NOT IN ('Returned', 'Resolved'))
     ORDER BY m.score DESC, m.id DESC
     LIMIT 200
   `).all(isAdmin ? 1 : 0, user.id);
@@ -870,6 +872,9 @@ route('GET', '/api/claims', 'user', ({ user }) => {
 });
 
 route('POST', '/api/claims', 'user', ({ user, body }) => {
+  if (user.role === 'admin') {
+    throw new HttpError(403, 'Administrators cannot submit ownership claims.');
+  }
   const foundId = idParam(body.found_report_id);
   const proof = cleanText(body.proof_description, { label: 'Proof of ownership', min: 10, max: 2000, required: true });
   const proofPhoto = cleanImage(body.proof_photo_url, MAX_PHOTO_KB, 'Proof photo');

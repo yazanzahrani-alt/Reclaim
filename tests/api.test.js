@@ -125,6 +125,8 @@ async function main() {
     check('future date rejected', r.status === 400);
     r = await api('POST', '/reports', { token: adminToken, body: baseReport({ type: 'LOST' }) });
     check('admin cannot report a lost item', r.status === 403, `got ${r.status}`);
+    r = await api('POST', '/reports', { token: adminToken, body: baseReport({ type: 'FOUND', handed_to_office: true }) });
+    check('admin cannot report a found item', r.status === 403, `got ${r.status}`);
     r = await api('POST', '/reports', { token: khalidToken, body: baseReport({ type: 'FOUND', handed_to_office: true, photo_url: '' }) });
     check('found item without photo is rejected', r.status === 400, `got ${r.status}`);
     r = await api('PUT', `/reports/${lostId}`, { token: khalidToken, body: baseReport({ title: 'Hijacked' }) });
@@ -153,6 +155,8 @@ async function main() {
     check('match notification delivered to yazan', r.data.notifications.some((n) => n.type === 'MATCH'));
 
     console.log('\n[Claim workflow]');
+    r = await api('POST', '/claims', { token: adminToken, body: { found_report_id: foundId, proof_description: 'admin trying to claim item' } });
+    check('admin cannot submit an ownership claim', r.status === 403, `got ${r.status}`);
     r = await api('POST', '/claims', { token: khalidToken, body: { found_report_id: foundId, proof_description: 'it is mine, trust me' } });
     check('finder cannot claim own found item', r.status === 400);
     r = await api('POST', '/claims', { token: yazanToken, body: { found_report_id: foundId, proof_description: 'short' } });
@@ -183,6 +187,12 @@ async function main() {
     check('admin marks returned', r.status === 200 && r.data.claim.status === 'Returned');
     r = await api('GET', '/stats', { token: yazanToken });
     check('resolved counter updated', r.data.counts.resolved >= 1);
+    r = await api('GET', '/reports', { token: yazanToken });
+    check('resolved/returned reports are hidden from students', !r.data.reports.some((x) => x.id === foundId || x.id === lostId));
+    r = await api('GET', '/matches', { token: yazanToken });
+    check('resolved/returned matches are hidden from students', !r.data.matches.some((m) => m.found_report_id === foundId));
+    r = await api('GET', '/reports', { token: adminToken });
+    check('resolved/returned reports are still saved in DB for admin/logs', r.data.reports.some((x) => x.id === foundId && x.status === 'Returned'));
 
     console.log('\n[Moderation & suspension]');
     r = await api('POST', '/auth/register', { body: { username: 'spammer', password: 'Spam-pass1!', confirmPassword: 'Spam-pass1!' } });

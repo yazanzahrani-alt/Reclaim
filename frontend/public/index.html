@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reclaim — Campus Lost &amp; Found</title>
+  <title>Al-Baha University — Lost &amp; Found</title>
+  <link rel="icon" type="image/jpeg" href="/albaha-logo.jpg" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -17,13 +18,16 @@
 
     <div class="login-container">
       <div class="login-hero">
-        <div class="brand-badge">
-          <span class="brand-icon">◈</span>
-          <span>CAMPUS LOST &amp; FOUND</span>
+        <div class="bu-hero-brand">
+          <img src="/albaha-logo.jpg" alt="Al-Baha University Emblem" class="bu-logo-hero" />
+          <div class="brand-badge">
+            <span class="brand-icon">◈</span>
+            <span>AL-BAHA UNIVERSITY • LOST &amp; FOUND</span>
+          </div>
         </div>
         <h1 class="hero-logo-title">reclaim<span>.</span></h1>
         <p class="hero-subtitle">
-          Report what you lost or found on campus. Reclaim matches reports automatically and returns items only after an administrator verifies ownership.
+          Report what you lost or found at Al-Baha University. Reclaim matches reports automatically and returns items only after an administrator verifies ownership.
         </p>
 
         <div class="hero-features">
@@ -104,15 +108,15 @@
     <header class="top-navbar">
       <div class="nav-left">
         <div class="app-logo" onclick="switchView('home')">
-          <span class="logo-mark">◈</span>
+          <img src="/albaha-logo.jpg" alt="Al-Baha University" class="bu-logo-nav" />
           <span class="logo-text">reclaim<span class="logo-dot">.</span></span>
-          <span class="campus-tag">CAMPUS L&amp;F</span>
+          <span class="campus-tag">AL-BAHA UNI</span>
         </div>
 
         <nav class="main-nav">
           <button class="nav-btn active" data-view="home" onclick="switchView('home')">🏠 Home</button>
           <button class="nav-btn" data-view="browse" onclick="switchView('browse')">🔍 Search &amp; Browse</button>
-          <button class="nav-btn" data-view="report" onclick="openReportForm('LOST')">➕ Report Item</button>
+          <button id="nav-report-tab" class="nav-btn" data-view="report" onclick="openReportForm('LOST')">➕ Report Item</button>
           <button class="nav-btn" data-view="claims" onclick="switchView('claims')">
             📋 Matches &amp; Claims
             <span id="nav-claims-badge" class="nav-badge hidden">0</span>
@@ -152,7 +156,7 @@
         <div class="hero-banner">
           <div class="hero-banner-text">
             <div class="hero-top-row">
-              <span class="hero-pill" id="home-campus-pill">🎓 King Saud University</span>
+              <span class="hero-pill" id="home-campus-pill">🎓 Al-Baha University — Lost &amp; Found</span>
               <button id="home-lang-btn" class="hero-lang-btn" type="button" title="تبديل اللغة / Switch language">🌐 العربية</button>
             </div>
             <h1 id="welcome-headline">Welcome</h1>

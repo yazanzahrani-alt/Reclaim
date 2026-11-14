@@ -88,9 +88,10 @@ const STATUS_MAP = {
 
 const I18N = {
   en: {
-    brandBadge: 'CAMPUS LOST & FOUND',
-    campusTag: 'CAMPUS L&F',
-    heroTitle: 'Report what you lost or found on campus. Reclaim matches reports automatically and returns items only after an administrator verifies ownership.',
+    pageTitle: 'Al-Baha University — Lost & Found',
+    brandBadge: 'AL-BAHA UNIVERSITY • LOST & FOUND',
+    campusTag: 'AL-BAHA UNI',
+    heroTitle: 'Report what you lost or found at Al-Baha University. Reclaim matches reports automatically and returns items only after an administrator verifies ownership.',
     feature1Title: 'Automatic matching',
     feature1Desc: 'New reports are compared with existing ones by category, building, color, brand and keywords.',
     feature2Title: 'Privacy first',
@@ -131,11 +132,11 @@ const I18N = {
     navClaims: '📋 Matches & Claims',
     navAdmin: '🛡️ Admin Workspace',
     signOut: 'Sign Out',
-    roleStudent: '🎓 Student',
+    roleStudent: '👤 User',
     roleAdmin: '🛡️ Administrator',
     welcomeHeadline: (u) => `Welcome, ${u}`,
-    homeCampusPill: '🎓 Campus Lost & Found System',
-    homeSubtitle: "Lost something, or found something that isn't yours? Report it in under a minute. Reclaim compares it with every open report and notifies the owner if there's a match.",
+    homeCampusPill: '🎓 Al-Baha University — Lost & Found',
+    homeSubtitle: "Lost something, or found something at Al-Baha University? Report it in under a minute. Reclaim compares it with every open report and notifies the owner if there's a match.",
     btnReportLost: '📢 Report Lost Item',
     btnReportFound: '📦 Report Found Item',
     btnSearchCampus: '🔎 Search Campus Items',
@@ -208,9 +209,10 @@ const I18N = {
     devopsWipeBtn: '🗑️ Wipe all data'
   },
   ar: {
-    brandBadge: 'نظام المفقودات والموجودات الجامعي',
-    campusTag: 'الأمانات والمفقودات',
-    heroTitle: 'أبلغ عما فقدته أو وجدته داخل الحرم الجامعي. يقوم النظام بمطابقة البلاغات آلياً ولا يتم تسليم المقتنيات إلا بعد التحقق الإداري من الملكية.',
+    pageTitle: 'جامعة الباحة — نظام المفقودات والمعثورات',
+    brandBadge: 'جامعة الباحة • المفقودات والمعثورات',
+    campusTag: 'جامعة الباحة',
+    heroTitle: 'أبلغ عما فقدته أو وجدته داخل جامعة الباحة. يقوم النظام بمطابقة البلاغات آلياً ولا يتم تسليم المقتنيات إلا بعد التحقق الإداري من الملكية.',
     feature1Title: 'مطابقة آلية ذكية',
     feature1Desc: 'تتم مقارنة البلاغات الجديدة آلياً مع الموجودات حسب التصنيف والمبنى واللون والعلامات المميزة.',
     feature2Title: 'حماية الخصوصية أولاً',
@@ -236,7 +238,7 @@ const I18N = {
     backToSignIn: '→ العودة إلى تسجيل الدخول',
     filterDate: 'التاريخ',
     fieldPhotoRequired: 'صورة المعثور عليه * (إجبارية لبلاغات المعثورات، بحد أقصى 3 ميجابايت)',
-    fieldHandoverRequired: 'أقر بتسليم المقتنى فعلياً إلى مكتب المفقودات والمعثورات بالجامعة. *',
+    fieldHandoverRequired: 'أقر بتسليم المقتنى فعلياً إلى مكتب المفقودات والمعثورات بجامعة الباحة. *',
     btnDetails: '🔍 عرض التفاصيل',
     btnEdit: '✏️ تعديل',
     editReportTitle: 'تعديل البلاغ',
@@ -251,11 +253,11 @@ const I18N = {
     navClaims: '📋 المطابقات والمطالبات',
     navAdmin: '🛡️ مساحة الإدارة',
     signOut: 'تسجيل الخروج',
-    roleStudent: '🎓 طالب',
+    roleStudent: '👤 مستخدم',
     roleAdmin: '🛡️ مسؤول النظام',
     welcomeHeadline: (u) => `أهلاً بك، ${u}`,
-    homeCampusPill: '🎓 نظام المفقودات والمعثورات الجامعي',
-    homeSubtitle: 'أضعت مقتنى، أو عثرت على ما ليس لك؟ أبلغ عنه الآن. يتولى النظام مطابقة البلاغات وإشعار المالك فور وجود تطابق.',
+    homeCampusPill: '🎓 جامعة الباحة — المفقودات والمعثورات',
+    homeSubtitle: 'أضعت مقتنى، أو عثرت على ما ليس لك في جامعة الباحة؟ أبلغ عنه الآن. يتولى النظام مطابقة البلاغات وإشعار المالك فور وجود تطابق.',
     btnReportLost: '📢 الإبلاغ عن مفقود',
     btnReportFound: '📦 الإبلاغ عن معثور عليه',
     btnSearchCampus: '🔎 تصفح مقتنيات الحرم',
@@ -417,6 +419,7 @@ function setLanguage(lang) {
 }
 
 function updateStaticI18n() {
+  document.title = t('pageTitle');
   // Login Hero
   const brandBadge = document.querySelector('.brand-badge span:last-child');
   if (brandBadge) brandBadge.textContent = t('brandBadge');
@@ -741,13 +744,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Keep data fresh without disturbing anything the user is typing.
+  // Keep data fresh in real time without disturbing anything the user is typing.
   setInterval(() => {
     if (!currentUser || document.hidden) return;
     const el = document.activeElement;
     if (el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
     refreshAllData();
-  }, 30000);
+  }, 3000);
+  window.addEventListener('focus', () => {
+    if (currentUser) refreshAllData();
+  });
 });
 
 function fillSelect(id, values, allLabel, map = null) {
@@ -942,8 +948,11 @@ function updateUserHeader() {
   $('header-username').textContent = `@${currentUser.username}`;
   $('header-user-role').textContent = isAdmin ? t('roleAdmin') : t('roleStudent');
   $('nav-admin-tab').classList.toggle('hidden', !isAdmin);
+  if ($('nav-report-tab')) $('nav-report-tab').classList.toggle('hidden', isAdmin);
   if ($('home-report-lost-btn')) $('home-report-lost-btn').classList.toggle('hidden', isAdmin);
+  if ($('home-report-found-btn')) $('home-report-found-btn').classList.toggle('hidden', isAdmin);
   if ($('browse-report-lost-btn')) $('browse-report-lost-btn').classList.toggle('hidden', isAdmin);
+  if ($('browse-report-found-btn')) $('browse-report-found-btn').classList.toggle('hidden', isAdmin);
   if ($('tab-btn-lost')) $('tab-btn-lost').classList.toggle('hidden', isAdmin);
   $('welcome-headline').textContent = t('welcomeHeadline', currentUser.username);
 }
@@ -1016,9 +1025,12 @@ function switchView(name) {
 }
 
 function openReportForm(type) {
-  const safeType = (currentUser && currentUser.role === 'admin' && type === 'LOST') ? 'FOUND' : type;
+  if (currentUser && currentUser.role === 'admin') {
+    showToast(currentLang === 'ar' ? 'لا يمكن لمسؤول النظام تقديم بلاغات مفقودات أو معثورات.' : 'Administrators cannot report lost or found items.', 'error');
+    return switchView('admin');
+  }
   switchView('report');
-  setReportFormType(safeType);
+  setReportFormType(type);
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,10 +1055,19 @@ function buildMatchCardHtml(m) {
     return `<span class="match-attr-tag">✓ ${escapeHtml(text)}</span>`;
   }).join('');
 
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const closed = ['Returned', 'Resolved'].includes(m.found_status);
-  const action = closed
-    ? `<span class="btn btn-sm" style="background:#d1fae5;color:#047857;">✅ ${escapeHtml(isAr ? 'تم التسليم' : 'Returned')}</span>`
-    : `<button class="btn btn-primary btn-sm" data-action="claim" data-id="${m.found_report_id}" data-lost="${m.lost_report_id}">🛡️ ${escapeHtml(isAr ? 'تقديم مطالبة إثبات ملكية' : 'Submit ownership claim')}</button>`;
+  const canClaimMatch = !isAdmin && ['Active', 'Claim Pending'].includes(m.found_status);
+  let action = '';
+  if (closed) {
+    action = `<span class="btn btn-sm" style="background:#d1fae5;color:#047857;">✅ ${escapeHtml(isAr ? 'تم التسليم' : 'Returned')}</span>`;
+  } else if (isAdmin) {
+    action = `<button class="btn btn-outline btn-sm" onclick="switchView('admin')">🛡️ ${escapeHtml(isAr ? 'مراجعة في مساحة الإدارة' : 'Review in Admin Workspace')}</button>`;
+  } else if (canClaimMatch) {
+    action = `<button class="btn btn-primary btn-sm" data-action="claim" data-id="${m.found_report_id}" data-lost="${m.lost_report_id}">🛡️ ${escapeHtml(isAr ? 'تقديم مطالبة إثبات ملكية' : 'Submit ownership claim')}</button>`;
+  } else {
+    action = `<span class="btn btn-sm" style="background:#dbeafe;color:#1d4ed8;">🛡️ ${escapeHtml(isAr ? (STATUS_MAP[m.found_status] || m.found_status) : m.found_status)}</span>`;
+  }
 
   const scoreLabel = isAr ? 'نسبة تطابق' : 'match';
   const speedLabel = isAr ? `المطابقة في ${m.match_time_ms} مللي ثانية` : `Matched in ${m.match_time_ms} ms`;
@@ -1099,8 +1120,9 @@ function buildReportCardHtml(r) {
   const banner = r.is_suspicious
     ? `<div class="alert-box alert-warn" style="margin-top:10px;font-size:11.5px;">🚨 <strong>${escapeHtml(isAr ? 'قيد المراجعة الإدارية:' : 'Under review:')}</strong> ${escapeHtml(r.suspicious_reason || (isAr ? 'يقوم مسؤول النظام بمراجعة هذا البلاغ.' : 'An administrator is reviewing this report.'))}</div>`
     : '';
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const closed = ['Returned', 'Resolved'].includes(r.status);
-  const canClaim = r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
+  const canClaim = !isAdmin && r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
 
   const buttons = [];
   buttons.push(`<button class="btn btn-outline btn-sm" data-action="details" data-id="${r.id}">${escapeHtml(t('btnDetails'))}</button>`);
@@ -1160,7 +1182,7 @@ function renderHomeView() {
       ? (isAr ? 'لا توجد مطابقات حالياً. تظهر المطابقات آلياً عند تسجيل بلاغين متشابهين.' : 'No matches yet. They appear automatically when a lost and a found report look alike.')
       : (isAr ? 'لا توجد مطابقات حالياً. إذا قدمت بلاغاً عن مفقود، ستظهر أي معثورات مطابقة هنا.' : 'No matches yet. If you report a lost item, any matching found item will show up here.'));
 
-  const visible = allReports.filter((r) => !r.is_suspicious || r.is_mine || isAdmin);
+  const visible = allReports.filter((r) => !['Returned', 'Resolved'].includes(r.status) && (!r.is_suspicious || r.is_mine || isAdmin));
   $('home-reports-container').innerHTML = visible.length
     ? visible.slice(0, 6).map(buildReportCardHtml).join('')
     : emptyState(isAr ? 'لا توجد بلاغات مسجلة حالياً. كن أول من يبلغ عن مفقود أو معثور عليه.' : 'No reports yet. Be the first — report a lost or found item.');
@@ -1177,7 +1199,7 @@ function applySearchFilters() {
   const dateVal = $('filter-date') ? $('filter-date').value : '';
   const isAdmin = currentUser.role === 'admin';
 
-  let list = allReports.filter((r) => !r.is_suspicious || r.is_mine || isAdmin);
+  let list = allReports.filter((r) => !['Returned', 'Resolved'].includes(r.status) && (!r.is_suspicious || r.is_mine || isAdmin));
   if (type !== 'ALL') list = list.filter((r) => r.type === type);
   if (category !== 'ALL') list = list.filter((r) => r.category === category);
   if (location !== 'ALL') list = list.filter((r) => r.location === location);
@@ -1296,8 +1318,8 @@ function handleImageUpload(event, target) {
 async function handleCreateReportSubmit(e) {
   e.preventDefault();
   const type = $('report-type-input').value;
-  if (currentUser && currentUser.role === 'admin' && type === 'LOST') {
-    return showToast(t('errAdminNoLost'), 'error');
+  if (currentUser && currentUser.role === 'admin') {
+    return showToast(currentLang === 'ar' ? 'لا يمكن لمسؤول النظام تقديم بلاغات مفقودات أو معثورات.' : 'Administrators cannot report lost or found items.', 'error');
   }
   if (type === 'FOUND' && !photos.report.url) {
     return showToast(t('errFoundPhotoRequired'), 'error');
@@ -1346,6 +1368,9 @@ async function handleCreateReportSubmit(e) {
 // Claims (student side)
 // ---------------------------------------------------------------------------
 function openClaimModal(foundId, lostId) {
+  if (currentUser && currentUser.role === 'admin') {
+    return showToast(currentLang === 'ar' ? 'لا يمكن لمسؤول النظام تقديم مطالبة ملكية.' : 'Administrators cannot submit ownership claims.', 'error');
+  }
   const found = allReports.find((r) => r.id === foundId) || allMatches.find((m) => m.found_report_id === foundId);
   const title = found ? (found.title || found.found_title) : `#${foundId}`;
   $('claim-found-report-id').value = foundId;
@@ -1700,7 +1725,7 @@ function renderDevOpsConsole() {
           <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
             <td style="padding:6px;">#${u.id}</td>
             <td style="padding:6px;font-weight:700;">@${escapeHtml(u.username)}</td>
-            <td style="padding:6px;">${escapeHtml(u.role)}</td>
+            <td style="padding:6px;">${escapeHtml(u.role === 'admin' ? 'admin' : 'user')}</td>
             <td style="padding:6px;">${u.report_count}</td>
             <td style="padding:6px;color:${u.status === 'active' ? '#34d399' : '#f87171'};font-weight:700;">${escapeHtml(u.status)}</td>
             <td style="padding:6px;">${u.role === 'admin' ? '—' : `<button class="devops-btn" style="padding:3px 8px;font-size:11px;" data-action="toggle-user" data-id="${u.id}">${u.status === 'active' ? 'Suspend' : 'Restore'}</button>`}</td>
@@ -1813,8 +1838,9 @@ function openItemDetailsModal(reportId) {
     <div style="margin-top:10px;font-size:12.5px;color:var(--text-muted);">👤 ${escapeHtml(r.reporter_label)}</div>
   `;
 
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const closed = ['Returned', 'Resolved'].includes(r.status);
-  const canClaim = r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
+  const canClaim = !isAdmin && r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
   const footerBtns = [`<button type="button" class="btn btn-outline" onclick="closeItemDetailsModal()">${escapeHtml(t('closeBtn'))}</button>`];
   if (r.is_mine && !closed && r.status !== 'Approved') {
     footerBtns.push(`<button type="button" class="btn btn-outline" onclick="closeItemDetailsModal(); openEditReportModal(${r.id});">${escapeHtml(t('btnEdit'))}</button>`);
