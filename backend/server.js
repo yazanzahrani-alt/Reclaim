@@ -654,6 +654,9 @@ route('GET', '/api/reports', 'user', ({ url, user }) => {
 
 route('POST', '/api/reports', 'user', ({ user, body }) => {
   const type = cleanChoice(body.type, ['LOST', 'FOUND'], 'Report type');
+  if (user.role === 'admin' && type === 'LOST') {
+    throw new HttpError(403, 'Administrators cannot report lost items.');
+  }
   const title = cleanText(body.title, { label: 'Title', min: 3, max: 100, required: true });
   const category = cleanChoice(body.category, CATEGORIES, 'Category');
   const color = cleanChoice(body.color, COLORS, 'Color');
@@ -674,6 +677,9 @@ route('POST', '/api/reports', 'user', ({ user, body }) => {
     .get(user.id, new Date(Date.now() - 60 * 60 * 1000).toISOString()).c;
   if (recent >= 20) throw new HttpError(429, 'You have submitted too many reports in the last hour. Please wait a bit.');
 
+  if (type === 'FOUND' && !photo.url) {
+    throw badRequest('A photo is required when reporting a found item.');
+  }
   if (type === 'FOUND' && body.handed_to_office !== true) {
     throw badRequest('Confirm that you are handing the found item to the Lost & Found office.');
   }
@@ -689,6 +695,53 @@ route('POST', '/api/reports', 'user', ({ user, body }) => {
   const matchStats = runMatchingEngine(reportId);
   const created = db.prepare('SELECT r.*, u.username AS owner_username FROM reports r JOIN users u ON u.id = r.user_id WHERE r.id = ?').get(reportId);
   return { status: 201, body: { report: serializeReport(created, user), matchStats } };
+});
+
+route('PUT', '/api/reports/:id', 'user', ({ params, user, body }) => {
+  const id = idParam(params.id);
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(id);
+  if (!report) throw new HttpError(404, 'Report not found.');
+  if (report.user_id !== user.id && user.role !== 'admin') {
+    throw new HttpError(403, 'You can only edit your own reports.');
+  }
+  if (['Returned', 'Resolved', 'Approved'].includes(report.status)) {
+    throw new HttpError(409, 'Approved or resolved reports cannot be edited.');
+  }
+
+  const title = cleanText(body.title, { label: 'Title', min: 3, max: 100, required: true });
+  const category = cleanChoice(body.category, CATEGORIES, 'Category');
+  const color = cleanChoice(body.color, COLORS, 'Color');
+  const location = cleanChoice(body.location, LOCATIONS, 'Location');
+  const brand = cleanText(body.brand, { label: 'Brand', max: 60 });
+  const description = cleanText(body.description, { label: 'Description', min: 10, max: 1000, required: true });
+  const marks = cleanText(body.distinguishing_marks, { label: 'Distinguishing marks', max: 300 });
+
+  const when = new Date(body.date_lost_found);
+  if (typeof body.date_lost_found !== 'string' || Number.isNaN(when.getTime())) throw badRequest('Enter a valid date and time.');
+  if (when.getTime() > Date.now() + 5 * 60 * 1000) throw badRequest('The date cannot be in the future.');
+
+  let nextPhoto = { url: report.photo_url || '', kb: report.image_size_kb || 0 };
+  let nextThumb = { url: report.photo_thumb_url || '' };
+  if (body.photo_url !== undefined) {
+    nextPhoto = cleanImage(body.photo_url, MAX_PHOTO_KB, 'Photo');
+    nextThumb = nextPhoto.url ? cleanImage(body.photo_thumb_url, MAX_THUMB_KB, 'Photo preview') : { url: '' };
+  }
+  if (report.type === 'FOUND' && !nextPhoto.url) {
+    throw badRequest('A photo is required when reporting a found item.');
+  }
+
+  db.prepare(`
+    UPDATE reports
+    SET title = ?, category = ?, color = ?, brand = ?, location = ?, date_lost_found = ?,
+        description = ?, distinguishing_marks = ?, photo_url = ?, photo_thumb_url = ?, image_size_kb = ?
+    WHERE id = ?
+  `).run(title, category, color, brand, location, when.toISOString(), description, marks,
+    nextPhoto.url, nextThumb.url, nextPhoto.kb, id);
+
+  const matchStats = report.status === 'Active' ? runMatchingEngine(id) : { matchesFound: 0, latencyMs: 0 };
+  const updated = db.prepare('SELECT r.*, u.username AS owner_username FROM reports r JOIN users u ON u.id = r.user_id WHERE r.id = ?').get(id);
+  logSystemEvent('REPORT_UPDATED', `Report #${id} updated by @${user.username}.`);
+  return { report: serializeReport(updated, user), matchStats };
 });
 
 route('DELETE', '/api/reports/:id', 'user', ({ params, user }) => {

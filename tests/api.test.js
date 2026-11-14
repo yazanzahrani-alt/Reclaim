@@ -123,6 +123,15 @@ async function main() {
     check('non-image photo rejected', r.status === 400);
     r = await api('POST', '/reports', { token: yazanToken, body: baseReport({ date_lost_found: new Date(Date.now() + 86400e3).toISOString() }) });
     check('future date rejected', r.status === 400);
+    r = await api('POST', '/reports', { token: adminToken, body: baseReport({ type: 'LOST' }) });
+    check('admin cannot report a lost item', r.status === 403, `got ${r.status}`);
+    r = await api('POST', '/reports', { token: khalidToken, body: baseReport({ type: 'FOUND', handed_to_office: true, photo_url: '' }) });
+    check('found item without photo is rejected', r.status === 400, `got ${r.status}`);
+    r = await api('PUT', `/reports/${lostId}`, { token: khalidToken, body: baseReport({ title: 'Hijacked' }) });
+    check('other user cannot edit lost report', r.status === 403, `got ${r.status}`);
+    r = await api('PUT', `/reports/${lostId}`, { token: yazanToken, body: baseReport({ title: 'Black Dell Laptop Charger 65W' }) });
+    check('owner can edit own lost report', r.status === 200 && r.data.report.title === 'Black Dell Laptop Charger 65W', `got ${r.status}`);
+
     r = await api('POST', '/reports', { token: khalidToken, body: baseReport({ type: 'FOUND', title: 'Black Dell charger', handed_to_office: true, distinguishing_marks: 'SECRET-SERIAL-AH92' }) });
     check('khalid reports a found item and the matcher runs', r.status === 201 && r.data.matchStats.matchesFound === 1, JSON.stringify(r.data.matchStats));
     const foundId = r.data.report.id;

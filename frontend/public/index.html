@@ -52,9 +52,14 @@
       </div>
 
       <div class="login-card">
+        <div class="auth-mode-tabs" role="tablist" aria-label="Authentication mode">
+          <button type="button" id="btn-mode-signin" class="auth-mode-btn active" onclick="setAuthMode('signin')">Sign in</button>
+          <button type="button" id="btn-mode-register" class="auth-mode-btn" onclick="setAuthMode('register')">Register</button>
+        </div>
+
         <div class="login-card-header">
           <h2 id="login-title">Sign in to Reclaim</h2>
-          <p id="login-subtitle">Enter your username and password. New here? Type a new username and we'll help you create the account.</p>
+          <p id="login-subtitle">Enter your username and password, or click Register to create a new account.</p>
         </div>
 
         <form id="login-form" class="login-form" novalidate>
@@ -212,8 +217,8 @@
             <p>Search every open lost and found report on campus.</p>
           </div>
           <div class="page-title-actions">
-            <button class="btn btn-primary" onclick="openReportForm('LOST')">+ Report Lost</button>
-            <button class="btn btn-secondary" onclick="openReportForm('FOUND')">+ Report Found</button>
+            <button id="browse-report-lost-btn" class="btn btn-primary" onclick="openReportForm('LOST')">+ Report Lost</button>
+            <button id="browse-report-found-btn" class="btn btn-secondary" onclick="openReportForm('FOUND')">+ Report Found</button>
           </div>
         </div>
 
@@ -241,6 +246,10 @@
           <div class="filter-group">
             <label for="filter-color">Color</label>
             <select id="filter-color" onchange="applySearchFilters()"><option value="ALL">All colors</option></select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-date">Date</label>
+            <input type="date" id="filter-date" onchange="applySearchFilters()" />
           </div>
           <div class="filter-group filter-reset">
             <label>&nbsp;</label>
@@ -309,12 +318,12 @@
             <div id="found-handover-box" class="handover-checkbox-box hidden">
               <label class="checkbox-label">
                 <input type="checkbox" id="rep-handed" />
-                <span>I am handing the physical item to the Campus Lost &amp; Found office.</span>
+                <span>I am handing the physical item to the Campus Lost &amp; Found office. *</span>
               </label>
             </div>
 
             <div class="form-group">
-              <label>Photo (optional, compressed automatically; max 3 MB)</label>
+              <label id="rep-photo-label">Photo (optional, compressed automatically; max 3 MB)</label>
               <div class="photo-upload-zone">
                 <div class="photo-upload-controls">
                   <input type="file" id="rep-file-input" accept="image/jpeg,image/png,image/webp" onchange="handleImageUpload(event, 'report')" />
@@ -460,6 +469,78 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeMoreProofModal()">Cancel</button>
           <button type="submit" class="btn btn-primary">Send to administrator</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== ITEM DETAILS MODAL ==================== -->
+  <div id="item-details-modal" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div>
+          <h3 id="details-modal-title">Item details</h3>
+          <p id="details-modal-subtitle"></p>
+        </div>
+        <button class="close-btn" onclick="closeItemDetailsModal()">✕</button>
+      </div>
+      <div id="details-modal-body" class="modal-body"></div>
+      <div class="modal-footer" id="details-modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeItemDetailsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== EDIT REPORT MODAL ==================== -->
+  <div id="edit-report-modal" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div>
+          <h3 id="edit-modal-title">Edit report</h3>
+          <p id="edit-modal-subtitle"></p>
+        </div>
+        <button class="close-btn" onclick="closeEditReportModal()">✕</button>
+      </div>
+      <form id="edit-report-form" class="modal-body">
+        <input type="hidden" id="edit-report-id" />
+        <input type="hidden" id="edit-report-type" />
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="edit-title">Item title *</label>
+            <input type="text" id="edit-title" maxlength="100" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-category">Category *</label>
+            <select id="edit-category" required></select>
+          </div>
+          <div class="form-group">
+            <label for="edit-color">Main color *</label>
+            <select id="edit-color" required></select>
+          </div>
+          <div class="form-group">
+            <label for="edit-brand">Brand / make</label>
+            <input type="text" id="edit-brand" maxlength="60" />
+          </div>
+          <div class="form-group">
+            <label for="edit-location">Campus building / location *</label>
+            <select id="edit-location" required></select>
+          </div>
+          <div class="form-group">
+            <label for="edit-date">When *</label>
+            <input type="datetime-local" id="edit-date" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="edit-description">Description *</label>
+          <textarea id="edit-description" rows="3" maxlength="1000" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="edit-marks">Distinguishing marks</label>
+          <input type="text" id="edit-marks" maxlength="300" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeEditReportModal()">Cancel</button>
+          <button type="submit" id="edit-save-btn" class="btn btn-primary">Save changes</button>
         </div>
       </form>
     </div>

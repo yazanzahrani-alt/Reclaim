@@ -111,8 +111,20 @@ const I18N = {
     ruleSpecial: 'At least one special character (! @ # $ % …)',
     ruleMatch: 'Both passwords match',
     signInBtn: 'Sign in',
-    createAccountBtn: 'Create account',
+    registerTabBtn: 'Register',
+    createAccountBtn: 'Register',
     backToSignIn: '← Back to sign in',
+    filterDate: 'Date',
+    fieldPhotoRequired: 'Photo * (required for found items, max 3 MB)',
+    fieldHandoverRequired: 'I am handing the physical item to the Campus Lost & Found office. *',
+    btnDetails: '🔍 View Details',
+    btnEdit: '✏️ Edit',
+    editReportTitle: 'Edit report',
+    editReportSub: 'Update your report details and re-run automatic matching.',
+    saveChanges: 'Save changes',
+    closeBtn: 'Close',
+    errFoundPhotoRequired: 'A photo is required when reporting a found item.',
+    errAdminNoLost: 'Administrators cannot report lost items.',
     navHome: '🏠 Home',
     navBrowse: '🔍 Search & Browse',
     navReport: '➕ Report Item',
@@ -219,8 +231,20 @@ const I18N = {
     ruleSpecial: 'رمز خاص واحد على الأقل (! @ # $ % …)',
     ruleMatch: 'تطابق كلمتي المرور',
     signInBtn: 'تسجيل الدخول',
+    registerTabBtn: 'إنشاء حساب',
     createAccountBtn: 'إنشاء الحساب',
     backToSignIn: '→ العودة إلى تسجيل الدخول',
+    filterDate: 'التاريخ',
+    fieldPhotoRequired: 'صورة المعثور عليه * (إجبارية لبلاغات المعثورات، بحد أقصى 3 ميجابايت)',
+    fieldHandoverRequired: 'أقر بتسليم المقتنى فعلياً إلى مكتب المفقودات والمعثورات بالجامعة. *',
+    btnDetails: '🔍 عرض التفاصيل',
+    btnEdit: '✏️ تعديل',
+    editReportTitle: 'تعديل البلاغ',
+    editReportSub: 'حدّث بيانات بلاغك لإعادة المطابقة الآلية.',
+    saveChanges: 'حفظ التعديلات',
+    closeBtn: 'إغلاق',
+    errFoundPhotoRequired: 'إرفاق صورة للمعثور عليه إجباري.',
+    errAdminNoLost: 'لا يمكن لمسؤول النظام الإبلاغ عن مفقودات.',
     navHome: '🏠 الرئيسية',
     navBrowse: '🔍 البحث والتصفح',
     navReport: '➕ تقديم بلاغ',
@@ -372,6 +396,9 @@ function setLanguage(lang) {
       fillSelect('rep-category', meta.categories, '', CATEGORY_MAP);
       fillSelect('rep-color', meta.colors, '', COLOR_MAP);
       fillSelect('rep-location', meta.locations, '', LOCATION_MAP);
+      fillSelect('edit-category', meta.categories, '', CATEGORY_MAP);
+      fillSelect('edit-color', meta.colors, '', COLOR_MAP);
+      fillSelect('edit-location', meta.locations, '', LOCATION_MAP);
     }
   } catch (err) {
     console.warn('fillSelect error:', err);
@@ -407,6 +434,8 @@ function updateStaticI18n() {
   }
 
   // Login Form
+  if ($('btn-mode-signin')) $('btn-mode-signin').textContent = t('signInBtn');
+  if ($('btn-mode-register')) $('btn-mode-register').textContent = t('registerTabBtn');
   $('login-title').textContent = authMode === 'register' ? t('loginTitleRegister') : t('loginTitleSignIn');
   $('login-subtitle').textContent = authMode === 'register' ? t('loginSubtitleRegister') : t('loginSubtitleSignIn');
   const userLabel = document.querySelector('label[for="login-username"]');
@@ -474,12 +503,13 @@ function updateStaticI18n() {
     browseButtons[1].textContent = t('btnReportFound');
   }
   const filterGroups = document.querySelectorAll('.filter-bar .filter-group label');
-  if (filterGroups.length >= 5) {
+  if (filterGroups.length >= 6) {
     filterGroups[0].textContent = t('filterKeyword');
     filterGroups[1].textContent = t('filterType');
     filterGroups[2].textContent = t('filterCategory');
     filterGroups[3].textContent = t('filterLocation');
     filterGroups[4].textContent = t('filterColor');
+    filterGroups[5].textContent = t('filterDate');
   }
   $('filter-q').placeholder = t('filterKeywordPlaceholder');
   const filterTypeSelect = $('filter-type');
@@ -521,11 +551,11 @@ function updateStaticI18n() {
   if (repMarksLabel) repMarksLabel.textContent = t('fieldMarks');
   $('rep-marks').placeholder = t('fieldMarksPlaceholder');
   const handedSpan = document.querySelector('#found-handover-box .checkbox-label span');
-  if (handedSpan) handedSpan.textContent = t('fieldHandover');
-  const repPhotoZone = document.querySelector('#create-report-form .photo-upload-zone');
-  if (repPhotoZone && repPhotoZone.parentElement) {
-    const repPhotoLabel = repPhotoZone.parentElement.querySelector('label');
-    if (repPhotoLabel) repPhotoLabel.textContent = t('fieldPhoto');
+  if (handedSpan) handedSpan.textContent = t('fieldHandoverRequired');
+  const repPhotoLabel = $('rep-photo-label');
+  if (repPhotoLabel) {
+    const isFoundForm = $('report-type-input') && $('report-type-input').value === 'FOUND';
+    repPhotoLabel.textContent = isFoundForm ? t('fieldPhotoRequired') : t('fieldPhoto');
   }
   const repClearBtn = document.querySelector('#create-report-form .btn-chip');
   if (repClearBtn) repClearBtn.textContent = t('btnRemovePhoto');
@@ -663,6 +693,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     hide($('login-error'));
   });
   $('create-report-form').addEventListener('submit', handleCreateReportSubmit);
+  if ($('edit-report-form')) $('edit-report-form').addEventListener('submit', handleEditReportSubmit);
   $('submit-claim-form').addEventListener('submit', handleSubmitClaim);
   $('more-proof-form').addEventListener('submit', handleMoreProofSubmit);
   document.addEventListener('click', handleDelegatedClick);
@@ -691,6 +722,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     fillSelect('rep-category', meta.categories, '', CATEGORY_MAP);
     fillSelect('rep-color', meta.colors, '', COLOR_MAP);
     fillSelect('rep-location', meta.locations, '', LOCATION_MAP);
+    fillSelect('edit-category', meta.categories, '', CATEGORY_MAP);
+    fillSelect('edit-color', meta.colors, '', COLOR_MAP);
+    fillSelect('edit-location', meta.locations, '', LOCATION_MAP);
   } catch (err) {
     showLoginError(err.message);
   }
@@ -751,6 +785,8 @@ function togglePasswordVisibility() {
 function setAuthMode(mode, notice = '') {
   authMode = mode;
   const register = mode === 'register';
+  if ($('btn-mode-signin')) $('btn-mode-signin').classList.toggle('active', !register);
+  if ($('btn-mode-register')) $('btn-mode-register').classList.toggle('active', register);
   $('register-extra').classList.toggle('hidden', !register);
   $('login-back').classList.toggle('hidden', !register);
   $('login-title').textContent = register ? t('loginTitleRegister') : t('loginTitleSignIn');
@@ -759,7 +795,7 @@ function setAuthMode(mode, notice = '') {
     : t('loginSubtitleSignIn');
   $('login-submit').textContent = register ? t('createAccountBtn') : t('signInBtn');
   $('login-password').autocomplete = register ? 'new-password' : 'current-password';
-  $('login-username').readOnly = register;
+  $('login-username').readOnly = false;
   $('login-back').textContent = t('backToSignIn');
   hide($('login-error'));
   const noticeBox = $('login-notice');
@@ -767,9 +803,12 @@ function setAuthMode(mode, notice = '') {
   if (register) {
     $('login-confirm').value = '';
     updatePasswordRules();
-    $('login-password').focus();
+    if ($('login-username').value.trim()) {
+      $('login-password').focus();
+    } else {
+      $('login-username').focus();
+    }
   } else {
-    $('login-username').readOnly = false;
     $('login-password').value = '';
     $('login-confirm').value = '';
     $('login-username').focus();
@@ -903,6 +942,9 @@ function updateUserHeader() {
   $('header-username').textContent = `@${currentUser.username}`;
   $('header-user-role').textContent = isAdmin ? t('roleAdmin') : t('roleStudent');
   $('nav-admin-tab').classList.toggle('hidden', !isAdmin);
+  if ($('home-report-lost-btn')) $('home-report-lost-btn').classList.toggle('hidden', isAdmin);
+  if ($('browse-report-lost-btn')) $('browse-report-lost-btn').classList.toggle('hidden', isAdmin);
+  if ($('tab-btn-lost')) $('tab-btn-lost').classList.toggle('hidden', isAdmin);
   $('welcome-headline').textContent = t('welcomeHeadline', currentUser.username);
 }
 
@@ -974,8 +1016,9 @@ function switchView(name) {
 }
 
 function openReportForm(type) {
+  const safeType = (currentUser && currentUser.role === 'admin' && type === 'LOST') ? 'FOUND' : type;
   switchView('report');
-  setReportFormType(type);
+  setReportFormType(safeType);
 }
 
 // ---------------------------------------------------------------------------
@@ -1060,7 +1103,9 @@ function buildReportCardHtml(r) {
   const canClaim = r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
 
   const buttons = [];
+  buttons.push(`<button class="btn btn-outline btn-sm" data-action="details" data-id="${r.id}">${escapeHtml(t('btnDetails'))}</button>`);
   if (canClaim) buttons.push(`<button class="btn btn-primary btn-sm" data-action="claim" data-id="${r.id}">${escapeHtml(isAr ? 'تقديم مطالبة' : 'Submit claim')}</button>`);
+  if (r.is_mine && !closed && r.status !== 'Approved') buttons.push(`<button class="btn btn-outline btn-sm" title="${escapeHtml(t('btnEdit'))}" data-action="edit-report" data-id="${r.id}">✏️</button>`);
   if (!r.is_mine && !r.is_suspicious) buttons.push(`<button class="btn btn-outline btn-sm" title="${escapeHtml(isAr ? 'إبلاغ عن شبهة أو تكرار' : 'Flag as suspicious or duplicate')}" data-action="flag" data-id="${r.id}">🚩</button>`);
   if (r.is_mine && !closed) buttons.push(`<button class="btn btn-outline btn-sm" title="${escapeHtml(isAr ? 'حذف بلاغي' : 'Delete my report')}" data-action="delete-report" data-id="${r.id}">🗑️</button>`);
 
@@ -1129,6 +1174,7 @@ function applySearchFilters() {
   const category = $('filter-category').value;
   const location = $('filter-location').value;
   const color = $('filter-color').value;
+  const dateVal = $('filter-date') ? $('filter-date').value : '';
   const isAdmin = currentUser.role === 'admin';
 
   let list = allReports.filter((r) => !r.is_suspicious || r.is_mine || isAdmin);
@@ -1136,6 +1182,7 @@ function applySearchFilters() {
   if (category !== 'ALL') list = list.filter((r) => r.category === category);
   if (location !== 'ALL') list = list.filter((r) => r.location === location);
   if (color !== 'ALL') list = list.filter((r) => r.color === color);
+  if (dateVal) list = list.filter((r) => String(r.date_lost_found || '').slice(0, 10) === dateVal);
   if (q) {
     list = list.filter((r) => [r.title, r.description, r.brand, r.location, r.category].some((f) => String(f || '').toLowerCase().includes(q)));
   }
@@ -1149,6 +1196,7 @@ function applySearchFilters() {
 
 function resetSearchFilters() {
   $('filter-q').value = '';
+  if ($('filter-date')) $('filter-date').value = '';
   ['filter-type', 'filter-category', 'filter-location', 'filter-color'].forEach((id) => { $(id).value = 'ALL'; });
   applySearchFilters();
 }
@@ -1167,16 +1215,22 @@ function resetReportForm() {
   $('rep-date').value = nowForInput();
   $('rep-date').max = nowForInput();
   clearPhoto('report');
-  setReportFormType($('report-type-input').value || 'LOST');
+  const defaultType = (currentUser && currentUser.role === 'admin') ? 'FOUND' : ($('report-type-input').value || 'LOST');
+  setReportFormType(defaultType);
 }
 
 function setReportFormType(type) {
-  $('report-type-input').value = type;
-  const found = type === 'FOUND';
+  const safeType = (currentUser && currentUser.role === 'admin' && type === 'LOST') ? 'FOUND' : type;
+  $('report-type-input').value = safeType;
+  const found = safeType === 'FOUND';
   $('tab-btn-lost').className = `type-switch-btn${found ? '' : ' active-lost'}`;
+  if (currentUser && currentUser.role === 'admin') $('tab-btn-lost').classList.add('hidden');
   $('tab-btn-found').className = `type-switch-btn${found ? ' active-found' : ''}`;
   $('found-handover-box').classList.toggle('hidden', !found);
   $('report-form-banner').innerHTML = found ? t('bannerFound') : t('bannerLost');
+  if ($('rep-photo-label')) {
+    $('rep-photo-label').textContent = found ? t('fieldPhotoRequired') : t('fieldPhoto');
+  }
 }
 
 function clearPhoto(target) {
@@ -1242,6 +1296,12 @@ function handleImageUpload(event, target) {
 async function handleCreateReportSubmit(e) {
   e.preventDefault();
   const type = $('report-type-input').value;
+  if (currentUser && currentUser.role === 'admin' && type === 'LOST') {
+    return showToast(t('errAdminNoLost'), 'error');
+  }
+  if (type === 'FOUND' && !photos.report.url) {
+    return showToast(t('errFoundPhotoRequired'), 'error');
+  }
   if (type === 'FOUND' && !$('rep-handed').checked) {
     return showToast('Please confirm that you are handing the item to the Lost & Found office.', 'error');
   }
@@ -1717,6 +1777,121 @@ async function markAllNotificationsRead() {
 }
 
 // ---------------------------------------------------------------------------
+// Item Details & Edit Report Modals
+// ---------------------------------------------------------------------------
+function openItemDetailsModal(reportId) {
+  const r = allReports.find((item) => item.id === reportId);
+  if (!r) return;
+  const isAr = currentLang === 'ar';
+  const locLabel = isAr ? (LOCATION_MAP[r.location] || r.location) : r.location;
+  const catLabel = isAr ? (CATEGORY_MAP[r.category] || r.category) : r.category;
+  const colLabel = isAr ? (COLOR_MAP[r.color] || r.color) : r.color;
+  const statusLabel = isAr ? (STATUS_MAP[r.status] || r.status) : r.status;
+  const typeLabel = r.type === 'LOST' ? (isAr ? '📢 مفقود' : '📢 LOST') : (isAr ? '📦 معثور عليه' : '📦 FOUND');
+
+  $('details-modal-title').textContent = r.title;
+  $('details-modal-subtitle').textContent = `${typeLabel} • ${statusLabel} • #${r.id}`;
+
+  const photoHtml = r.photo_url
+    ? `<div class="report-img-wrap ${r.should_blur_photo ? 'privacy-blurred' : ''}" style="border-radius:12px;overflow:hidden;margin-bottom:14px;">
+         <img src="${escapeHtml(r.photo_url)}" alt="" style="width:100%;max-height:260px;object-fit:cover;display:block;" />
+         ${r.should_blur_photo ? `<div class="privacy-blur-overlay"><span class="privacy-blur-pill">🔒 ${escapeHtml(isAr ? 'الصورة محجوبة لحماية الخصوصية' : 'Photo hidden for privacy')}</span></div>` : ''}
+       </div>`
+    : '';
+
+  $('details-modal-body').innerHTML = `
+    ${photoHtml}
+    <div class="report-meta-tags" style="margin-bottom:12px;">
+      <span class="meta-pill">📍 ${escapeHtml(locLabel)}</span>
+      <span class="meta-pill">🏷️ ${escapeHtml(catLabel)}</span>
+      <span class="meta-pill">🎨 ${escapeHtml(colLabel)}</span>
+      ${r.brand ? `<span class="meta-pill">✨ ${escapeHtml(r.brand)}</span>` : ''}
+      <span class="meta-pill">🕒 ${escapeHtml(formatWhen(r.date_lost_found))}</span>
+    </div>
+    <p style="line-height:1.6;margin-bottom:12px;">${escapeHtml(r.description)}</p>
+    <div class="report-marks-box"><strong>${escapeHtml(isAr ? 'العلامات الفارقة:' : 'Distinguishing marks:')}</strong> ${escapeHtml(r.distinguishing_marks_display)}</div>
+    <div style="margin-top:10px;font-size:12.5px;color:var(--text-muted);">👤 ${escapeHtml(r.reporter_label)}</div>
+  `;
+
+  const closed = ['Returned', 'Resolved'].includes(r.status);
+  const canClaim = r.type === 'FOUND' && !r.is_mine && !closed && !r.is_suspicious && ['Active', 'Claim Pending'].includes(r.status);
+  const footerBtns = [`<button type="button" class="btn btn-outline" onclick="closeItemDetailsModal()">${escapeHtml(t('closeBtn'))}</button>`];
+  if (r.is_mine && !closed && r.status !== 'Approved') {
+    footerBtns.push(`<button type="button" class="btn btn-outline" onclick="closeItemDetailsModal(); openEditReportModal(${r.id});">${escapeHtml(t('btnEdit'))}</button>`);
+  }
+  if (canClaim) {
+    footerBtns.push(`<button type="button" class="btn btn-primary" onclick="closeItemDetailsModal(); openClaimModal(${r.id}, null);">${escapeHtml(isAr ? 'تقديم مطالبة' : 'Submit claim')}</button>`);
+  }
+  $('details-modal-footer').innerHTML = footerBtns.join('');
+  show($('item-details-modal'));
+}
+
+function closeItemDetailsModal() {
+  hide($('item-details-modal'));
+}
+
+function openEditReportModal(reportId) {
+  const r = allReports.find((item) => item.id === reportId);
+  if (!r) return;
+  $('edit-modal-title').textContent = t('editReportTitle');
+  $('edit-modal-subtitle').textContent = t('editReportSub');
+  $('edit-save-btn').textContent = t('saveChanges');
+  $('edit-report-id').value = String(r.id);
+  $('edit-report-type').value = r.type;
+  $('edit-title').value = r.title || '';
+  $('edit-category').value = r.category || '';
+  $('edit-color').value = r.color || '';
+  $('edit-brand').value = r.brand || '';
+  $('edit-location').value = r.location || '';
+
+  const d = new Date(r.date_lost_found);
+  if (!Number.isNaN(d.getTime())) {
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    $('edit-date').value = d.toISOString().slice(0, 16);
+  }
+  $('edit-date').max = nowForInput();
+  $('edit-description').value = r.description || '';
+  $('edit-marks').value = r.distinguishing_marks || '';
+  show($('edit-report-modal'));
+}
+
+function closeEditReportModal() {
+  hide($('edit-report-modal'));
+}
+
+async function handleEditReportSubmit(e) {
+  e.preventDefault();
+  const id = Number($('edit-report-id').value);
+  const when = new Date($('edit-date').value);
+  if (Number.isNaN(when.getTime())) return showToast('Enter a valid date and time.', 'error');
+
+  const btn = $('edit-save-btn');
+  btn.disabled = true;
+  try {
+    await api(`/reports/${id}`, {
+      method: 'PUT',
+      body: {
+        title: $('edit-title').value,
+        category: $('edit-category').value,
+        color: $('edit-color').value,
+        brand: $('edit-brand').value,
+        location: $('edit-location').value,
+        date_lost_found: when.toISOString(),
+        description: $('edit-description').value,
+        distinguishing_marks: $('edit-marks').value
+      }
+    });
+    closeEditReportModal();
+    showToast(currentLang === 'ar' ? 'تم تحديث البلاغ وإعادة المطابقة بنجاح.' : 'Report updated and matching refreshed.');
+    await refreshAllData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // One click handler for all buttons that act on a record (no inline JS with user data)
 // ---------------------------------------------------------------------------
 function handleDelegatedClick(e) {
@@ -1724,6 +1899,8 @@ function handleDelegatedClick(e) {
   if (!btn) return;
   const id = Number(btn.dataset.id);
   switch (btn.dataset.action) {
+    case 'details': return openItemDetailsModal(id);
+    case 'edit-report': return openEditReportModal(id);
     case 'claim': return openClaimModal(id, btn.dataset.lost ? Number(btn.dataset.lost) : null);
     case 'flag': return flagReport(id);
     case 'delete-report': return deleteOwnReport(id);
